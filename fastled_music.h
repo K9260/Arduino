@@ -160,7 +160,7 @@ void oneSideFlash() {
   int lastLED = 0;
 
     int color = 0;
-    //pick a random color
+ 
 
 
     for (int i = startingPoint; i < NUM_LEDS - 5 ; i += 10) {
@@ -188,12 +188,6 @@ void oneSideFlash() {
       }
     }
     FastLED.clear();
-    if (startingPoint < 5)
-      startingPoint = 5;
-    else
-      startingPoint = 0;
-
-
   
 }
 void oneColorFlash() {
