@@ -104,15 +104,14 @@ void printLEDS() {
   hue += gHue;
   //always LEDset (atm it is only 1) amount of leds are given new colors starting from led[0] and going up
   for (int i = 0; i < LEDset; i++) {
-    leds[i + 16] = CHSV(hue, 250, b);
+    leds[i] = CHSV(hue, 250, b);
   }
-  //+16 is only offset for my strip and it can be deleted in other setups
-
+ 
   //every led is pushed 1 step more further
   //example led[1] = led[0]
   //next loop >>
   //        led[2] = led[1]
-  for (int i = NUM_LEDS - 1; i >= LEDset + 16; i--) {
+  for (int i = NUM_LEDS - 1; i >= LEDset; i--) {
     leds[i] = leds[i - LEDset];
   }
   FastLED.show();
@@ -137,8 +136,8 @@ void printLEDS_center() {
   hue += gHue;
   //always LEDset (atm it is only 1) amount of leds are given new colors starting from led[0] and going up
   for (int i = 0; i < LEDset; i++) {
-    leds[NUM_LEDS / 2 + i + 12] = CHSV(hue, 250, b);
-    leds[(NUM_LEDS / 2 - i) - 1 + 12] = CHSV(hue, 250, b);
+    leds[NUM_LEDS / 2 + i] = CHSV(hue, 250, b);
+    leds[(NUM_LEDS / 2 - i) - 1] = CHSV(hue, 250, b);
     fadeToBlackBy(leds, NUM_LEDS, 13);
   }
 
@@ -146,10 +145,10 @@ void printLEDS_center() {
   //example led[1] = led[0]
   //next loop >>
   //        led[2] = led[1]
-  for (int i = NUM_LEDS - 1; i >= (NUM_LEDS / 2) + 12; i--) {
+  for (int i = NUM_LEDS - 1; i >= (NUM_LEDS / 2); i--) {
     leds[i] = leds[i - LEDset];
   }
-  for (int i = 0; i <= (NUM_LEDS / 2) + 12; i++) {
+  for (int i = 0; i <= (NUM_LEDS / 2); i++) {
     leds[i] = leds[i + LEDset];
   }
 
