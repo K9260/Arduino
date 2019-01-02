@@ -102,7 +102,7 @@ void printLEDS() {
     b = 0;
   uint8_t hue = random(-18, 18);
   hue += gHue;
-  //always LEDset (atm it is only 1) amount of leds are given new colors starting from led[0] and going up
+  
   for (int i = 0; i < LEDset; i++) {
     leds[i] = CHSV(hue, 250, b);
   }
@@ -134,17 +134,16 @@ void printLEDS_center() {
     b = 0;
   uint8_t hue = random(-18, 18);
   hue += gHue;
-  //always LEDset (atm it is only 1) amount of leds are given new colors starting from led[0] and going up
+  //LEDset amount of leds are given new colors starting from led[0] and going up
   for (int i = 0; i < LEDset; i++) {
     leds[NUM_LEDS / 2 + i] = CHSV(hue, 250, b);
     leds[(NUM_LEDS / 2 - i) - 1] = CHSV(hue, 250, b);
     fadeToBlackBy(leds, NUM_LEDS, 13);
   }
 
-  //every led is pushed 1 step more further
+  //every led is pushed 1 step more further so it looks like the led is moving
   //example led[1] = led[0]
-  //next loop >>
-  //        led[2] = led[1]
+
   for (int i = NUM_LEDS - 1; i >= (NUM_LEDS / 2); i--) {
     leds[i] = leds[i - LEDset];
   }
@@ -156,7 +155,7 @@ void printLEDS_center() {
   delay(15);
 }
 
-
+//I recommend googling fscale function and replacing this with fscale if you use this in the future
 float funcParab(float x) {
   //parabolic function that I use to calculate new value for volume peak detection
   float RTCVar;
