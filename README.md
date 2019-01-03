@@ -7,7 +7,9 @@ They were not planned to be shared but few people asked for them so here they ar
 <br>
 So <strong>please understand</strong> they are nothing very fancy nor well commented.
 <br>
-VU-meter is the newest and still under developement.
+<br>
+VU-meter is the newest and still under developement, but it is starting to look very good.
+<br>
 <br>
 You will need a microphone to your arduino board - I used one called "MX 4466".
 You can get one from ebay.
