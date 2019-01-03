@@ -13,3 +13,6 @@ VU-meter is the newest and still under developement, but it is starting to look 
 <br>
 You will need a microphone to your arduino board - I used one called "MX 4466".
 You can get one from ebay.
+<br>
+<br>
+<strong>I do not give permission to use these codes on commercial products</strong>
