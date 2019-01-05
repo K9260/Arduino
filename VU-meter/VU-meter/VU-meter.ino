@@ -21,9 +21,10 @@ CRGB leds[NUM_LEDS];
 
 uint8_t hue = 0;
 
-const int maxBeats = 8; //Min is 2 and value has to be divisible by two
-const int maxBubbles = NUM_LEDS / 2; //Decrease if laggy
+const int maxBeats = 10; //Min is 2 and value has to be divisible by two
+const int maxBubbles = NUM_LEDS / 3; //Decrease if there is too much action going on
 const int maxRipples = 6; //Min is 2 and value has to be divisible by two
+const int maxTrails = 3;
 
 struct bubble
 {
@@ -33,18 +34,15 @@ struct bubble
   int velocity;
   int life;
   int maxLife;
+  int maxVelocity;
   bool exist;
 
   bubble() {
-    pos = 0;
-    velocity = 1; // Increase or decrease if needed, defined for each bubble again in bubbles()
-    life = 0;
-    maxLife = 80; //How many moves bubble can do
-    exist = false;
-    brightness = 255;
-    color = hue + random(20);
+    Init();
   }
   Move() {
+    if (velocity > maxVelocity)
+      velocity = maxVelocity;
     pos += velocity;
     life++;
     brightness -= 255 / maxLife;
@@ -56,16 +54,24 @@ struct bubble
       velocity *= -1;
       pos = 0;
     }
-    if (life > maxLife || brightness < 10)
+    if (life > maxLife || brightness < 20)
       exist = false;
-    if (!exist) {
-      brightness = 0;
-      life = 0;
-    }
+    if (!exist)
+      Init();
   }
   NewColor() {
     color = hue + random(20);
     brightness = 255;
+  }
+  Init() {
+    pos = random(0,NUM_LEDS);
+    velocity = 1; // Increase or decrease if needed, defined for each bubble again in bubbles()
+    life = 0;
+    maxLife = 80; //How many moves bubble can do
+    exist = false;
+    brightness = 255;
+    color = hue + random(30);
+    maxVelocity = 2;
   }
 };
 typedef struct bubble Bubble;
@@ -113,20 +119,24 @@ struct ripple
 typedef struct ripple Ripple;
 
 Ripple beat[maxBeats];
-Bubble bubble[maxBubbles];
 Ripple ripple[maxRipples];
+Bubble bubble[maxBubbles];
+Bubble trail[maxTrails];
 
 int index = 0;
 int topLED = 0;
 int gravity = 2; //HIGHER VALUE EQUALS SLOWER MOVEMENT FOR THE TOP LED
 int gravityCounter = 0;
 int averageCounter = 0;
+uint8_t cBrightness;
+uint8_t pBrightness = 0;
 
 float average = 0;
 float MAX_VOL = MIC_MAX;
 float sensitivity = 0.50; //HIGHER VALUE EQUALS SMALLER CHANCE OF COLOR SWIPE
 
 bool reversed = false;
+bool changeColor = false;
 
 void setup() {
   FastLED.addLeds<LED_TYPE, DATA_PIN, COLOR_ORDER>(leds, NUM_LEDS).setCorrection(TypicalLEDStrip);
@@ -139,9 +149,12 @@ void loop() {
   // dots();
   // split();
   // colorSwipe();
-  //beats();
-  // bubbles();
+  // beats();
+   bubbles();
   // ripples();
+  // trails();
+  // flash();
+  /*
     switch (index) {
       case 0: vu();
         break;
@@ -161,12 +174,14 @@ void loop() {
       index++;
       if (index > 6)
         index = 0;
-    }
+    }*/
   EVERY_N_SECONDS(10) {
-    hue = random(255); //EVERY 10 SECONDS PICK RANDOM COLOR
+    if(changeColor)
+    hue = random(256); //EVERY 10 SECONDS PICK RANDOM COLOR
   }
 }
 void vu() {
+  changeColor = true;
   int audio = analogRead(A0); //READING FROM MIC
   audio -= NOISE;
   audio = abs(audio); //TURNS NEGATIVE VALUE TO POSITIVE
@@ -183,8 +198,6 @@ void vu() {
     topLED--;
 
   leds[topLED] = CHSV(220, 255, 255); //PINK LED AS TOP LED WITH GRAVITY
-  if (topLED < NUM_LEDS - 1)            //CHECK TO NOT GO OVER THE INDEX
-    leds[topLED + 1] = CRGB(0, 0, 0);   //CLEAR THE PREVIOUS LED
 
   gravityCounter++;
   if (gravityCounter > gravity)
@@ -195,6 +208,7 @@ void vu() {
 }
 
 void dots() {
+  changeColor = true;
   int audio = analogRead(A0); //READING FROM MIC
   audio -= NOISE;
   audio = abs(audio); //TURNS NEGATIVE VALUE TO POSITIVE
@@ -209,9 +223,6 @@ void dots() {
   leds[topLED] = CHSV(hue, 255, 255); //TOP LED WITH GRAVITY
   leds[topLED - 1] = leds[topLED];    //HIS FRIEND :D
 
-  if (topLED < NUM_LEDS - 1)          //TO NOT GO OVER THE INDEX
-    leds[topLED + 1] = CRGB(0, 0, 0);   //CLEAR THE PREVIOUS LED
-
   gravityCounter++;
   if (gravityCounter > gravity)
     gravityCounter = 0;
@@ -221,7 +232,7 @@ void dots() {
 }
 
 void split() { //VU METER STARTS FROM THE MIDDLE OF STRIP AND DOES THE SAME EFFECT TO BOTH DIRECTIONS
-  //NOTE: NUM_LEDS MUST BE DIVISIBLE BY 2, IF NOT, LEDS MIGHT GO OUT OF INDEX
+  changeColor = true;
   int audio = analogRead(A0); //READING FROM MIC
   audio -= NOISE;
   audio = abs(audio); //TURNS NEGATIVE VALUE TO POSITIVE
@@ -231,7 +242,7 @@ void split() { //VU METER STARTS FROM THE MIDDLE OF STRIP AND DOES THE SAME EFFE
     leds[i] = CHSV(hue + i * 8, 250, 255 + (NUM_LEDS / 2) - i); //LEDS DRAWN UP, BRIGHTNESS GETS LOWER THE HIGHER LED IS DRAWN
     leds[NUM_LEDS - i - 1] = leds[i]; //LEDS DRAWN DOWN
   }
-  if (topLED <= audio)
+  if (topLED <= audio && topLED < NUM_LEDS)
     topLED = audio;
   else if (gravityCounter % gravity * 2 == 0) //GRAVITY MULTIPLIED BY 2 BECAUSE STRIP IS BASICALLY SPLIT INTO TWO PARTS
     topLED--;
@@ -246,6 +257,7 @@ void split() { //VU METER STARTS FROM THE MIDDLE OF STRIP AND DOES THE SAME EFFE
   delay(30);
 }
 void colorSwipe() { //SWIPES NEW COLOR OVER THE OLD ONE IF VOLUME SPIKES ENOUGH
+  changeColor = false;
   int audio = analogRead(A0);
   audio -= NOISE;
   audio = abs(audio); //TURNS NEGATIVE VALUE TO POSITIVE
@@ -280,6 +292,7 @@ void colorSwipe() { //SWIPES NEW COLOR OVER THE OLD ONE IF VOLUME SPIKES ENOUGH
 }
 
 void beats() {
+  changeColor = true;
   int audio = analogRead(A0);
   audio -= NOISE;
   audio = abs(audio); //TURNS NEGATIVE VALUE TO POSITIVE
@@ -287,10 +300,10 @@ void beats() {
   int newBeats = fscale(MIC_MIN, MAX_VOL * 0.8, 2, maxBeats, audio, 0.5); //Max amount of beats to be spawned this loop
   if (newBeats % 2 != 0) //Must be divisible by two
     newBeats--;
-  Serial.println(newBeats);
+
   for (int i = 0; i < newBeats; i += 2) {
-    if (audio > MAX_VOL * sensitivity * 0.45 && !beat[i].exist) {
-      int beatlife = random(3, 6);
+    if (audio > MAX_VOL * sensitivity * 0.55 && !beat[i].exist) {
+      int beatlife = random(3, 6); //Longer life = longer length
       beat[i].Init(0.75, beatlife); //Initialize fade and life
       beat[i].exist = true;
       beat[i].color += random(30);
@@ -309,6 +322,7 @@ void beats() {
   delay(30);
 }
 void bubbles() { //Spawns beats that move
+  changeColor = true;
   int audio = analogRead(A0);
   audio -= NOISE;
   audio = abs(audio); //TURNS NEGATIVE VALUE TO POSITIVE
@@ -316,18 +330,14 @@ void bubbles() { //Spawns beats that move
   if (audio > MAX_VOL * sensitivity * 0.7)
   {
     int randomBubble = random(maxBubbles);
-    if (bubble[randomBubble].exist == true) {
-      bubble[randomBubble].life = 0; //Give that bubble longer life
+    if (bubble[randomBubble].exist) {
+      bubble[randomBubble].life /= 2; //Give that bubble longer life
       bubble[randomBubble].NewColor(); // And new color
     }
     else {
       bubble[randomBubble].exist = true;
       bubble[randomBubble].NewColor();
     }
-    if (audio > MAX_VOL)
-      bubble[randomBubble].velocity = 2;
-    else
-      bubble[randomBubble].velocity = 1;
   }
   for (int i = 0; i < maxBubbles; i++) {
     if (bubble[i].exist) {
@@ -337,9 +347,10 @@ void bubbles() { //Spawns beats that move
   }
   FastLED.show();
   FastLED.clear();
-  delay(30);
+  delay(20);
 }
 void ripples() {
+  changeColor = false;
   int audio = analogRead(A0);
   audio -= NOISE;
   audio = abs(audio); //TURNS NEGATIVE VALUE TO POSITIVE
@@ -351,11 +362,10 @@ void ripples() {
   EVERY_N_SECONDS(1) {
     hue += 5;
   }
-  Serial.println(newRipples);
-  int b = beatsin8(35, 60, 80); //Pulsing brightness for background (pulses,min,max)
+  int b = beatsin8(30, 70, 90); //Pulsing brightness for background (pulses,min,max)
   fill_solid(leds, NUM_LEDS, CHSV(hue, 255, b)); //Delete this line if you dont like background color
   for (int i = 0; i < newRipples; i += 2) {
-    if (audio > MAX_VOL * sensitivity * 0.45 && !ripple[i].exist) {
+    if (audio > MAX_VOL * sensitivity * 0.65 && !ripple[i].exist) {
       ripple[i].Init(0.85, 20); //Initiliaze just in case color has changed after last init
       ripple[i].exist = true;
       ripple[i + 1] = ripple[i]; //Everything except velocity is the same for other ripples twin
@@ -372,6 +382,51 @@ void ripples() {
   FastLED.clear();
   delay(20);
 }
+void trails() { //Spawns trails that move
+  changeColor = true;
+  int audio = analogRead(A0);
+  audio -= NOISE;
+  audio = abs(audio); //TURNS NEGATIVE VALUE TO POSITIVE
+  MAX_VOL = audioMax(audio, SAMPLES);
+  if (audio > MAX_VOL * sensitivity * 0.6)
+  {
+    int randomTrail = random(maxTrails);
+    if (trail[randomTrail].exist) {
+      trail[randomTrail].life /= 2; //Give that trail longer life
+      trail[randomTrail].NewColor(); // And new color
+    }
+    else {
+      trail[randomTrail].exist = true;
+      trail[randomTrail].maxLife /= 2;
+    }
+  }
+  for (int i = 0; i < maxTrails; i++) {
+    if (trail[i].exist) {
+      leds[trail[i].pos] = CHSV(trail[i].color, 255, trail[i].brightness);
+      trail[i].Move();
+    }
+  }
+  FastLED.show();
+  fadeToBlackBy(leds, NUM_LEDS, 100);
+  delay(20);
+}
+void flash() { //Flashing strip
+  changeColor = false;
+  int audio = analogRead(A0);
+  audio -= NOISE;
+  audio = abs(audio); //TURNS NEGATIVE VALUE TO POSITIVE
+  MAX_VOL = audioMax(audio, SAMPLES);
+  cBrightness = fscale(MIC_MIN, MAX_VOL, 50, 255, audio, 0.5); //Current brightness
+  if(pBrightness * 2 < cBrightness){ //Previous compared to current with some extra threshold to avoid flickering
+  fill_solid(leds, NUM_LEDS, CHSV(hue, 255, cBrightness));
+  hue += random(10);
+  }
+  pBrightness = cBrightness;
+  FastLED.show();
+  fadeToBlackBy(leds, NUM_LEDS, 20); //Fading the strip to dark
+  delay(20);
+}
+
 float audioMax(int audio, int samples) {
   average += audio;
   averageCounter++;
