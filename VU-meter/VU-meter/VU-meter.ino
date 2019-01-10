@@ -10,13 +10,13 @@ FASTLED_USING_NAMESPACE
 #define LED_TYPE    WS2812
 #define COLOR_ORDER GRB
 #define NUM_LEDS    36
-#define MIC_MIN 0
-#define MIC_MAX 50
-#define NOISE 339
-#define SAMPLES 50
-#define MIN_VOL 15
-#define MIC_PIN A0
-#define MIN_LEDS 8
+#define MIC_MIN     0
+#define MIC_MAX     50
+#define NOISE       339
+#define SAMPLES     50
+#define MIN_VOL     15
+#define MIC_PIN     A0
+#define MIN_LEDS    6
 
 CRGB leds[NUM_LEDS];
 
@@ -119,10 +119,48 @@ struct ripple
 };
 typedef struct ripple Ripple;
 
+int starIndex = 0;
+
+struct star
+{
+  int brightness;
+  int color;
+  int pos;
+  int OriginalPos;
+  int life;
+  int maxLife;
+  bool exist;
+
+  star() {
+    Init();
+    OriginalPos = starIndex;
+    pos = OriginalPos;
+    starIndex++;
+  }
+  Shine() {
+    life++;
+    brightness -= 255 / maxLife;
+    if (life > maxLife || brightness <= 0) exist = false;
+    if (brightness < 0) brightness = 0;
+    if (pos < 0) pos = 0;
+    if (pos > NUM_LEDS - 1) pos = NUM_LEDS - 1;
+  }
+  Init() {
+    life = 0;
+    maxLife = random(40, 80);
+    exist = false;
+    brightness = 255;
+    color = 160;
+    pos = OriginalPos;
+  }
+};
+typedef struct star Star;
+
 Ripple beat[maxBeats];
 Ripple ripple[maxRipples];
 Bubble bubble[maxBubbles];
 Bubble trail[maxTrails];
+Star star[NUM_LEDS];
 
 int index = 0;
 int topLED = 0;
@@ -149,14 +187,15 @@ void loop() {
 
   // vu();
   // dots();
-   split();
+  // split();
   // colorSwipe();
   // beats();
   // bubbles();
   // ripples();
   // trails();
   // flash();
-  /*
+  // stars();
+  
     switch (index) {
       case 0: vu();
         break;
@@ -171,12 +210,18 @@ void loop() {
       case 5: bubbles();
         break;
       case 6: ripples();
+      break;
+      case 7: trails();
+      break;
+      case 8: flash();
+      break;
+      case 9: stars();
     }
-    EVERY_N_SECONDS(30) {
+    EVERY_N_SECONDS(20) {
       index++;
-      if (index > 6)
+      if (index > 9)
         index = 0;
-    }*/
+    }
   EVERY_N_SECONDS(10) {
     if (changeColor)
       hue = random(256); //EVERY 10 SECONDS PICK RANDOM COLOR
@@ -187,8 +232,8 @@ void vu() {
   int max_threshold = NUM_LEDS - 1;
   int min_threshold = 0;
   changeColor = true;
-  audio = fscale(MIC_MIN, MAX_VOL, min_threshold, max_threshold, audio, 1.5);
-  MAX_VOL = maxVol(audio, min_threshold, max_threshold, MAX_VOL);
+  audio = fscale(MIC_MIN, MAX_VOL, min_threshold, max_threshold, audio, 0.5);
+  MAX_VOL = maxVol(audio, min_threshold, max_threshold);
   if (audio < MIN_LEDS) audio = 0; //Avoid flickering caused by small interference
   for (int i = 0; i < audio; i++) {
     leds[i] = CHSV(hue + i * 2, 255, 255 - i);
@@ -213,8 +258,8 @@ void dots() {
   int max_threshold = NUM_LEDS - 1;
   int min_threshold = 1;
   changeColor = true;
-  audio = fscale(MIC_MIN, MAX_VOL, min_threshold, max_threshold, audio, 1.5);
-  MAX_VOL = maxVol(audio, min_threshold, max_threshold, MAX_VOL);
+  audio = fscale(MIC_MIN, MAX_VOL, min_threshold, max_threshold, audio, 0.5);
+  MAX_VOL = maxVol(audio, min_threshold, max_threshold);
 
   if (audio >= topLED)
     topLED = audio;
@@ -238,7 +283,7 @@ void split() { //VU METER STARTS FROM THE MIDDLE OF STRIP AND DOES THE SAME EFFE
   int min_threshold = NUM_LEDS / 2;
   changeColor = true;
   audio = fscale(MIC_MIN, MAX_VOL, min_threshold, max_threshold, audio, 1.0);
-  MAX_VOL = maxVol(audio, min_threshold, max_threshold, MAX_VOL);
+  MAX_VOL = maxVol(audio, min_threshold, max_threshold);
   if (audio < MIN_LEDS / 2 + (NUM_LEDS / 2)) audio = NUM_LEDS / 2; //Avoid flickering caused by small interference
   for (int i = NUM_LEDS / 2; i < audio; i++) {
     leds[i] = CHSV(hue + i * 8, 250, 255 + (NUM_LEDS / 2) - i); //LEDS DRAWN UP, BRIGHTNESS GETS LOWER THE HIGHER LED IS DRAWN
@@ -261,7 +306,7 @@ void split() { //VU METER STARTS FROM THE MIDDLE OF STRIP AND DOES THE SAME EFFE
 void colorSwipe() { //SWIPES NEW COLOR OVER THE OLD ONE IF VOLUME SPIKES ENOUGH
   int audio = readInput();
   changeColor = false;
-  MAX_VOL = audioMax(audio, SAMPLES, 6);
+  MAX_VOL = audioMax(audio, SAMPLES, 7);
   fill_solid(leds, NUM_LEDS, CHSV(hue, 255, 255));
   if (audio > MAX_VOL * sensitivity) {
     hue = random(255);
@@ -383,12 +428,12 @@ void trails() { //Spawns trails that move
   {
     int randomTrail = random(maxTrails);
     if (trail[randomTrail].exist) {
-      trail[randomTrail].life /= 2; //Give that trail longer life
-      trail[randomTrail].NewColor(); // And new color
+      trail[randomTrail].life /= 2; //Extend life of trail
+      trail[randomTrail].NewColor(); // And give new color
     }
     else {
       trail[randomTrail].exist = true;
-      trail[randomTrail].maxLife /= 2;
+      trail[randomTrail].maxLife = 40;
     }
   }
   for (int i = 0; i < maxTrails; i++) {
@@ -408,25 +453,65 @@ void flash() { //Flashing strip
   cBrightness = fscale(MIC_MIN, MAX_VOL, 50, 255, audio, 0.5); //New brightness
   if (pBrightness * 2 < cBrightness) { //Previous compared to current with some extra threshold to avoid flickering
     fill_solid(leds, NUM_LEDS, CHSV(hue, 255, cBrightness));
-    hue += random(10);
+    hue += 5;
   }
   pBrightness = cBrightness;
   FastLED.show();
   fadeToBlackBy(leds, NUM_LEDS, 20); //Fading the strip to dark
   delay(20);
 }
-float maxVol(int audio, int min_threshold, int max_threshold, float max_vol) {
-  int threshold_half = (max_threshold + min_threshold) / 2;
-  int threshold_top = max_threshold - max_threshold / 3; //Top part is 1/3 of the led strips top
-  
+void stars() {
+  int audio = readInput();
+  bool starsExist = false;
+  changeColor = false;
+  MAX_VOL = audioMax(audio, SAMPLES, 4);
+  if (audio > MAX_VOL) {
+    int color = random(140, 180);
+    //Go through collection of stars and check if any of them are alive
+    for (int i = 0; i < NUM_LEDS; i++) {
+      if (star[i].exist)
+        starsExist = true;
+    }
+    //Fill strip with stars
+    for (int i = 0; i < NUM_LEDS; i++) {
+      if (!starsExist) {
+        star[i].Init();
+        star[i].color = color;
+        leds[i] = CHSV(star[i].color, 255, star[i].brightness);
+        star[i].exist = true;
+      }
+    }
+  }
+  for (int i = 0; i < NUM_LEDS; i += 2) {
+    int randomStar = random(NUM_LEDS);
+    if (star[i].exist || star[randomStar].exist) {
+      leds[star[i].pos] = CHSV(star[i].color, 255, star[i].brightness);
+      leds[star[randomStar].pos] = CHSV(star[randomStar].color, 255, star[randomStar].brightness);
+      //Extend life and decrease brightness of star
+      star[i].Shine();
+      star[randomStar].Shine();
+      //Swap positions of these stars
+      int temp = star[i].pos;
+      star[i].pos = star[randomStar].pos;
+      star[randomStar].pos = temp;
+    }
+  }
+  FastLED.show();
+  FastLED.clear();
+  delay(10);
+}
+
+float maxVol(int audio, int min_threshold, int max_threshold) {
+  int target_center = (max_threshold + min_threshold) / 2;
+  int target_top = max_threshold - max_threshold / 3; //1/3 of the led strips top
+
   //If the led is hitting up maximum constantly, we increase threshold
   //this is likely to happen when cranking up volume quickly
-  if (audio > threshold_top) max_vol *= 1.1;
+  if (audio > target_top) MAX_VOL *= 1.1;
   //If leds are sitting below half of the strip and audio read from mic is high enough,
   //decrease the threshold
-  if (readInput() >= MIN_VOL && audio < threshold_half) max_vol *= 0.9;
- Serial.println(max_vol);
-  return max_vol;
+  if (readInput() >= MIN_VOL && audio < target_center) MAX_VOL *= 0.9;
+  return MAX_VOL; //Returning this might seem useless, but I believe it makes the functions more easily readable
 }
 
 int readInput() {
@@ -441,15 +526,15 @@ float audioMax(int audio, int samples, int multiplier) {
   averageCounter++;
   if (averageCounter > samples) {
     average /= averageCounter;
-    MAX_VOL = average * multiplier;   //HIGHER MULTIPLIER MAKES LEDS STAY LOWER ON AVERAGE
-    if (MAX_VOL < MIN_VOL)            //Depending on the function using it ofc
+    MAX_VOL = average * multiplier;   //Higher multiplier increases the sensitivity in most functions
+    if (MAX_VOL < MIN_VOL)
       MAX_VOL = MIN_VOL;
 
     Serial.println(MAX_VOL);
     average = 0;
     averageCounter = 0;
   }
-  return MAX_VOL;
+  return MAX_VOL; //Returning this might seem useless, but I believe it makes the functions more easily readable
 }
 
 float fscale(float originalMin, float originalMax, float newBegin, float newEnd, float inputValue, float curve) {
