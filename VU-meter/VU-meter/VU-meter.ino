@@ -147,7 +147,7 @@ struct star
   }
   Init() {
     life = 0;
-    maxLife = random(40, 80);
+    maxLife = random(40, 60);
     exist = false;
     brightness = 255;
     color = 160;
@@ -194,8 +194,8 @@ void loop() {
   // ripples();
   // trails();
   // flash();
-  // stars();
-  
+   stars();
+  /*
     switch (index) {
       case 0: vu();
         break;
@@ -221,7 +221,7 @@ void loop() {
       index++;
       if (index > 9)
         index = 0;
-    }
+    }*/
   EVERY_N_SECONDS(10) {
     if (changeColor)
       hue = random(256); //EVERY 10 SECONDS PICK RANDOM COLOR
@@ -462,19 +462,19 @@ void flash() { //Flashing strip
 }
 void stars() {
   int audio = readInput();
-  bool starsExist = false;
+  bool starsYoung = false;
   changeColor = false;
   MAX_VOL = audioMax(audio, SAMPLES, 4);
   if (audio > MAX_VOL) {
     int color = random(140, 180);
-    //Go through collection of stars and check if any of them are alive
+    //Go through collection of stars and check if they have only existed less than half of their life
     for (int i = 0; i < NUM_LEDS; i++) {
-      if (star[i].exist)
-        starsExist = true;
+      if (star[i].life < (star[i].maxLife / 2) && star[i].life > 0)
+        starsYoung = true;
     }
     //Fill strip with stars
     for (int i = 0; i < NUM_LEDS; i++) {
-      if (!starsExist) {
+      if (!starsYoung) {
         star[i].Init();
         star[i].color = color;
         leds[i] = CHSV(star[i].color, 255, star[i].brightness);
