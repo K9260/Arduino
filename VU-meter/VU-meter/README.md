@@ -1,4 +1,4 @@
-For VU-meter what you need to do is to insert microphone Vcc to 3.3V, GRND TO GRND and data pin to A0.
+For VU-meter what you need to do is to insert microphone Vcc to 3.3V, GND TO GND and data pin to A0.
 <br>
 If you are not using arduino, you must define the data pin yourself, it just has to be analog input.
 <br>
