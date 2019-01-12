@@ -224,7 +224,7 @@ void loop() {
     }*/
   EVERY_N_SECONDS(10) {
     if (changeColor)
-      hue = random(256); //EVERY 10 SECONDS PICK RANDOM COLOR
+      hue = random(256); //Every 10 seconds pick random color
   }
 }
 void vu() {
@@ -243,7 +243,7 @@ void vu() {
   else if (gravityCounter % gravity == 0)
     topLED--;
 
-  leds[topLED] = CHSV(220, 255, 255); //PINK LED AS TOP LED WITH GRAVITY
+  leds[topLED] = CHSV(220, 255, 255); //Pink led as top led with gravity
   gravityCounter++;
   if (gravityCounter > gravity)
     gravityCounter = 0;
@@ -266,8 +266,8 @@ void dots() {
   else if (gravityCounter % gravity == 0)
     topLED--;
 
-  leds[topLED] = CHSV(hue, 255, 255); //TOP LED WITH GRAVITY
-  leds[topLED - 1] = leds[topLED];    //HIS FRIEND :D
+  leds[topLED] = CHSV(hue, 255, 255); //Top led with gravity
+  leds[topLED - 1] = leds[topLED];    //His friend :D
 
   gravityCounter++;
   if (gravityCounter > gravity)
@@ -277,7 +277,7 @@ void dots() {
   delay(30);
 }
 
-void split() { //VU METER STARTS FROM THE MIDDLE OF STRIP AND DOES THE SAME EFFECT TO BOTH DIRECTIONS
+void split() { //Vu meter starting from middle of strip and doing same effect to both directions
   int audio = readInput();
   int max_threshold = NUM_LEDS - 1;
   int min_threshold = NUM_LEDS / 2;
@@ -286,16 +286,16 @@ void split() { //VU METER STARTS FROM THE MIDDLE OF STRIP AND DOES THE SAME EFFE
   MAX_VOL = maxVol(audio, min_threshold, max_threshold);
   if (audio < MIN_LEDS / 2 + (NUM_LEDS / 2)) audio = NUM_LEDS / 2; //Avoid flickering caused by small interference
   for (int i = NUM_LEDS / 2; i < audio; i++) {
-    leds[i] = CHSV(hue + i * 8, 250, 255 + (NUM_LEDS / 2) - i); //LEDS DRAWN UP, BRIGHTNESS GETS LOWER THE HIGHER LED IS DRAWN
+    leds[i] = CHSV(hue + i * 8, 250, 255 + (NUM_LEDS / 2) - i); //LED's drawn up, brightness gets lower as leds go higher
     leds[NUM_LEDS - i - 1] = leds[i]; //LEDS DRAWN DOWN
   }
   if (topLED <= audio)
     topLED = audio;
-  else if (gravityCounter % gravity * 2 == 0) //GRAVITY MULTIPLIED BY 2 BECAUSE STRIP IS BASICALLY SPLIT INTO TWO PARTS
+  else if (gravityCounter % gravity * 2 == 0) //Gravity multiplied by 2 because the strip is split into half too in this function
     topLED--;
 
-  leds[topLED] = CHSV(220, 255, 255);         //TOP LED ON TOP OF STRIP (PINK)
-  leds[NUM_LEDS - topLED - 1] = leds[topLED]; //ON TOP OF THE BOTTOM HALF OF STRIP
+  leds[topLED] = CHSV(220, 255, 255);         //Top led on top of strip (PINK)
+  leds[NUM_LEDS - topLED - 1] = leds[topLED]; //On top of bottom half of strip
   gravityCounter++;
   if (gravityCounter > gravity * 2)
     gravityCounter = 0;
@@ -303,7 +303,7 @@ void split() { //VU METER STARTS FROM THE MIDDLE OF STRIP AND DOES THE SAME EFFE
   fadeToBlackBy(leds, NUM_LEDS, 160); //Looks smoother than using FastLED.clear()
   delay(30);
 }
-void colorSwipe() { //SWIPES NEW COLOR OVER THE OLD ONE IF VOLUME SPIKES ENOUGH
+void colorSwipe() { //Swipes/brushes new color over the old one
   int audio = readInput();
   changeColor = false;
   MAX_VOL = audioMax(audio, SAMPLES, 7);
@@ -316,14 +316,14 @@ void colorSwipe() { //SWIPES NEW COLOR OVER THE OLD ONE IF VOLUME SPIKES ENOUGH
       reversed = false;
 
     if (!reversed) {
-      for (int i = 0; i < NUM_LEDS; i++) { //DRAW ONE LED AT A TIME (UP)
+      for (int i = 0; i < NUM_LEDS; i++) { //Draw one led at a time (UP)
         leds[i] = CHSV(hue, 255, 255);
         FastLED.show();
         delay(10);
       }
     }
     else {
-      for (int i = NUM_LEDS - 1; i >= 0; i--) { //DRAW ONE LED AT A TIME (DOWN)
+      for (int i = NUM_LEDS - 1; i >= 0; i--) { //Draw one led at a time (DOWN)
         leds[i] = CHSV(hue, 255, 255);
         FastLED.show();
         delay(10);
