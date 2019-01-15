@@ -188,13 +188,13 @@ void loop() {
   // vu();
   // dots();
   // split();
-  // colorSwipe();
+   brush();
   // beats();
   // bubbles();
   // ripples();
   // trails();
   // flash();
-   stars();
+  // stars();
   /*
     switch (index) {
       case 0: vu();
@@ -203,7 +203,7 @@ void loop() {
         break;
       case 2: split();
         break;
-      case 3: colorSwipe();
+      case 3: brush();
         break;
       case 4: beats();
         break;
@@ -233,7 +233,7 @@ void vu() {
   int min_threshold = 0;
   changeColor = true;
   audio = fscale(MIC_MIN, MAX_VOL, min_threshold, max_threshold, audio, 0.5);
-  MAX_VOL = maxVol(audio, min_threshold, max_threshold);
+  MAX_VOL = maxVol(audio, NUM_LEDS / 2, max_threshold - max_threshold / 3);
   if (audio < MIN_LEDS) audio = 0; //Avoid flickering caused by small interference
   for (int i = 0; i < audio; i++) {
     leds[i] = CHSV(hue + i * 2, 255, 255 - i);
@@ -259,7 +259,7 @@ void dots() {
   int min_threshold = 1;
   changeColor = true;
   audio = fscale(MIC_MIN, MAX_VOL, min_threshold, max_threshold, audio, 0.5);
-  MAX_VOL = maxVol(audio, min_threshold, max_threshold);
+  MAX_VOL = maxVol(audio, NUM_LEDS / 2, max_threshold - max_threshold / 3);
 
   if (audio >= topLED)
     topLED = audio;
@@ -283,9 +283,9 @@ void split() { //Vu meter starting from middle of strip and doing same effect to
   int min_threshold = NUM_LEDS / 2;
   changeColor = true;
   audio = fscale(MIC_MIN, MAX_VOL, min_threshold, max_threshold, audio, 1.0);
-  MAX_VOL = maxVol(audio, min_threshold, max_threshold);
-  if (audio < MIN_LEDS / 2 + (NUM_LEDS / 2)) audio = NUM_LEDS / 2; //Avoid flickering caused by small interference
-  for (int i = NUM_LEDS / 2; i < audio; i++) {
+  MAX_VOL = maxVol(audio, (min_threshold + NUM_LEDS / 4), (NUM_LEDS - NUM_LEDS/4)); //Probably needs adjustment in different strip lenghts
+  if (audio < MIN_LEDS / 2 + (NUM_LEDS / 2)) audio = min_threshold; //Avoid flickering caused by small interference
+  for (int i = min_threshold; i < audio; i++) {
     leds[i] = CHSV(hue + i * 8, 250, 255 + (NUM_LEDS / 2) - i); //LED's drawn up, brightness gets lower as leds go higher
     leds[NUM_LEDS - i - 1] = leds[i]; //LEDS DRAWN DOWN
   }
@@ -303,12 +303,15 @@ void split() { //Vu meter starting from middle of strip and doing same effect to
   fadeToBlackBy(leds, NUM_LEDS, 160); //Looks smoother than using FastLED.clear()
   delay(30);
 }
-void colorSwipe() { //Swipes/brushes new color over the old one
+
+void brush() { // Swipes/brushes new color over the old one
   int audio = readInput();
   changeColor = false;
-  MAX_VOL = audioMax(audio, SAMPLES, 7);
+  //MAX_VOL = audioMax(audio, SAMPLES, 7);
   fill_solid(leds, NUM_LEDS, CHSV(hue, 255, 255));
-  if (audio > MAX_VOL * sensitivity) {
+  audio = fscale(MIC_MIN, MAX_VOL, 0, 100, audio, 0.5);
+  MAX_VOL = maxVol(audio, 20, 30);
+  if (audio > 65) {
     hue = random(255);
     if (hue < 127)
       reversed = true;
@@ -449,23 +452,28 @@ void trails() { //Spawns trails that move
 void flash() { //Flashing strip
   int audio = readInput();
   changeColor = false;
-  MAX_VOL = audioMax(audio, SAMPLES, 6);
-  cBrightness = fscale(MIC_MIN, MAX_VOL, 50, 255, audio, 0.5); //New brightness
-  if (pBrightness * 2 < cBrightness) { //Previous compared to current with some extra threshold to avoid flickering
+ // MAX_VOL = audioMax(audio, SAMPLES, 6);
+  cBrightness = fscale(MIC_MIN, MAX_VOL, 100, 255, audio, 0.5); //New brightness
+  MAX_VOL = maxVol(cBrightness, 150, 220);
+  if (pBrightness * 2 < cBrightness && cBrightness > 120) { //Previous compared to current with some extra threshold to avoid flickering
     fill_solid(leds, NUM_LEDS, CHSV(hue, 255, cBrightness));
-    hue += 5;
+    hue += 3;
+    pBrightness = cBrightness;
   }
-  pBrightness = cBrightness;
+  pBrightness -= 10;
   FastLED.show();
   fadeToBlackBy(leds, NUM_LEDS, 20); //Fading the strip to dark
   delay(20);
 }
+
 void stars() {
   int audio = readInput();
   bool starsYoung = false;
   changeColor = false;
-  MAX_VOL = audioMax(audio, SAMPLES, 4);
-  if (audio > MAX_VOL) {
+  //MAX_VOL = audioMax(audio, SAMPLES, 5);
+  audio = fscale(MIC_MIN, MAX_VOL, 0, 100, audio, 0.5);
+  MAX_VOL = maxVol(audio, 20, 30);
+  if (audio > 65) {
     int color = random(140, 180);
     //Go through collection of stars and check if they have only existed less than half of their life
     for (int i = 0; i < NUM_LEDS; i++) {
@@ -501,16 +509,16 @@ void stars() {
   delay(10);
 }
 
-float maxVol(int audio, int min_threshold, int max_threshold) {
-  int target_center = (max_threshold + min_threshold) / 2;
-  int target_top = max_threshold - max_threshold / 3; //1/3 of the led strips top
+float maxVol(int audio, int target, int target_top) {
+  if (target_top <= target) target_top++;
 
   //If the led is hitting up maximum constantly, we increase threshold
   //this is likely to happen when cranking up volume quickly
-  if (audio > target_top) MAX_VOL *= 1.1;
+  if (audio > target_top) MAX_VOL *= 1.05;
   //If leds are sitting below half of the strip and audio read from mic is high enough,
   //decrease the threshold
-  if (readInput() >= MIN_VOL && audio < target_center) MAX_VOL *= 0.9;
+  if (readInput() >= MIN_VOL && audio < target) MAX_VOL *= 0.95;
+  //Serial.println(MAX_VOL);
   return MAX_VOL; //Returning this might seem useless, but I believe it makes the functions more easily readable
 }
 
