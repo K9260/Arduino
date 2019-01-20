@@ -31,8 +31,8 @@ struct bubble
 {
   int brightness;
   int color;
-  int pos;
-  int velocity;
+  float pos;
+  float velocity;
   int life;
   int maxLife;
   int maxVelocity;
@@ -66,7 +66,7 @@ struct bubble
   }
   Init() {
     pos = random(0, NUM_LEDS);
-    velocity = 1; // Increase or decrease if needed
+    velocity = 0.9 + (random(5) * 0.1); // Increase or decrease if needed
     life = 0;
     maxLife = 80; //How many moves bubble can do
     exist = false;
@@ -163,7 +163,6 @@ Bubble trail[maxTrails];
 Star star[NUM_LEDS];
 
 int index = 0;
-int gravityCounter = 0;
 int sampleCount = 0;
 int samples[SAMPLES];
 
@@ -188,7 +187,7 @@ void setup() {
 }
 void loop() {
 
-   vu();
+  // vu();
   // dots();
   // split();
   // brush();
@@ -198,7 +197,7 @@ void loop() {
   // trails();
   // flash();
   // stars();
-  /*
+  
     switch (index) {
       case 0: vu();
         break;
@@ -220,11 +219,11 @@ void loop() {
       break;
       case 9: stars();
     }
-    EVERY_N_SECONDS(20) {
+    EVERY_N_SECONDS(30) {
       index++;
       if (index > 9)
         index = 0;
-    }*/
+    }
   EVERY_N_SECONDS(10) {
     if (changeColor)
       hue = random(256); //Every 10 seconds pick random color
@@ -272,9 +271,6 @@ void dots() {
   leds[(int)topLED] = CHSV(hue, 255, 255); //Top led with gravity
   leds[(int)topLED - 1] = leds[(int)topLED];    //His friend :D
 
-  gravityCounter++;
-  if (gravityCounter > gravity)
-    gravityCounter = 0;
   FastLED.show();
   FastLED.clear();
   delay(30);
@@ -369,7 +365,7 @@ void beats() {
 void bubbles() { //Spawns bubbles that move when audio peaks enough
   int audio = readInput();
   changeColor = true;
-  MAX_VOL = audioMax(audio, 4);
+  MAX_VOL = audioMax(audio, 5);
   if (audio > MAX_VOL * sensitivity)
   {
     int randomBubble = random(maxBubbles);
@@ -384,7 +380,7 @@ void bubbles() { //Spawns bubbles that move when audio peaks enough
   }
   for (int i = 0; i < maxBubbles; i++) {
     if (bubble[i].exist) {
-      leds[bubble[i].pos] = CHSV(bubble[i].color, 255, bubble[i].brightness);
+      leds[(int)bubble[i].pos] = CHSV(bubble[i].color, 255, bubble[i].brightness);
       bubble[i].Move();
     }
   }
@@ -442,7 +438,7 @@ void trails() { //Spawns trails that move
   }
   for (int i = 0; i < maxTrails; i++) {
     if (trail[i].exist) {
-      leds[trail[i].pos] = CHSV(trail[i].color, 255, trail[i].brightness);
+      leds[(int)trail[i].pos] = CHSV(trail[i].color, 255, trail[i].brightness);
       trail[i].Move();
     }
   }
