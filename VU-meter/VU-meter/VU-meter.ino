@@ -163,18 +163,17 @@ Bubble trail[maxTrails];
 Star star[NUM_LEDS];
 
 int index = 0;
-int topLED = 0;
-int gravity = 2; //Higher value = slower movement
 int gravityCounter = 0;
-int averageCounter = 0;
+int sampleCount = 0;
 int samples[SAMPLES];
 
 uint8_t cBrightness;
 uint8_t pBrightness = 0;
 
-float average = 0;
 float MAX_VOL = MIC_MAX;
 float sensitivity = 0.50; //Higher value = smaller sensitivity
+float gravity = 1; //Higher value = leds fall back down faster
+float topLED = 0;
 
 bool reversed = false;
 bool changeColor = false; //Does the function randomly change color every n seconds
@@ -189,9 +188,9 @@ void setup() {
 }
 void loop() {
 
-  // vu();
+   vu();
   // dots();
-   split();
+  // split();
   // brush();
   // beats();
   // bubbles();
@@ -244,14 +243,12 @@ void vu() {
   }
   if (audio >= topLED)
     topLED = audio;
-  else if (gravityCounter % gravity == 0)
-    topLED--;
-
-  leds[topLED] = CHSV(220, 255, 255); //Pink led as top led with gravity
-  gravityCounter++;
-  if (gravityCounter > gravity)
-    gravityCounter = 0;
-
+  else
+  topLED -= gravity;
+  if(topLED < min_threshold) 
+  topLED = min_threshold;
+ 
+  leds[(int)topLED] = CHSV(220, 255, 255); //Pink led as top led with gravity
   FastLED.show();
   fadeToBlackBy(leds, NUM_LEDS, 160); //Looks smoother than using FastLED.clear()
   delay(30);
@@ -267,11 +264,13 @@ void dots() {
 
   if (audio >= topLED)
     topLED = audio;
-  else if (gravityCounter % gravity == 0)
-    topLED--;
-
-  leds[topLED] = CHSV(hue, 255, 255); //Top led with gravity
-  leds[topLED - 1] = leds[topLED];    //His friend :D
+  else
+  topLED -= gravity;
+  if(topLED < min_threshold) 
+  topLED = min_threshold;
+ 
+  leds[(int)topLED] = CHSV(hue, 255, 255); //Top led with gravity
+  leds[(int)topLED - 1] = leds[(int)topLED];    //His friend :D
 
   gravityCounter++;
   if (gravityCounter > gravity)
@@ -295,14 +294,14 @@ void split() { //Vu meter starting from middle of strip and doing same effect to
   }
   if (topLED <= audio)
     topLED = audio;
-  else if (gravityCounter % gravity * 2 == 0) //Gravity multiplied by 2 because the strip is split into half too in this function
-    topLED--;
+  else
+  topLED -= (gravity / 2); //Divided by two because strip is split into half
+  if(topLED < min_threshold) 
+  topLED = min_threshold;
 
-  leds[topLED] = CHSV(220, 255, 255);         //Top led on top of strip (PINK)
-  leds[NUM_LEDS - topLED - 1] = leds[topLED]; //On top of bottom half of strip
-  gravityCounter++;
-  if (gravityCounter > gravity * 2)
-    gravityCounter = 0;
+  leds[(int)topLED] = CHSV(220, 255, 255);         //Top led on top of strip (PINK)
+  leds[NUM_LEDS - (int)topLED - 1] = leds[(int)topLED]; //On top of bottom half of strip
+
   FastLED.show();
   fadeToBlackBy(leds, NUM_LEDS, 160); //Looks smoother than using FastLED.clear()
   delay(30);
@@ -520,17 +519,17 @@ int readInput() {
   return audio;
 }
 float audioMax(int audio, int multiplier) {
-  samples[averageCounter] = audio; //Add one new sample value to samples
-  averageCounter++;
+  float average = 0;
+  samples[sampleCount] = audio; //Add one new sample value to samples
+  sampleCount++;
 
   for (int i = 0; i < SAMPLES; i++)
     average += samples[i];  // Calculate all samples to average variable
 
   average /= SAMPLES;   //Divide with amount of SAMPLES to get average of all samples
   MAX_VOL = average * multiplier;   //Higher multiplier increases the sensitivity in most functions
-  average = 0;
   if (MAX_VOL < MIN_VOL) MAX_VOL = MIN_VOL;
-  if (averageCounter >= SAMPLES) averageCounter = 0;
+  if (sampleCount >= SAMPLES) sampleCount = 0;
 
   Serial.println(MAX_VOL);
   return MAX_VOL; //Returning this might seem useless, but I believe it makes the functions more easily readable
