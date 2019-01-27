@@ -27,7 +27,7 @@ uint8_t hue = 0;
 const int maxBeats = 10; //Min is 2 and value has to be divisible by two
 const int maxBubbles = NUM_LEDS / 3; //Decrease if there is too much action going on
 const int maxRipples = 6; //Min is 2 and value has to be divisible by two
-const int maxTrails = 3;
+const int maxTrails = 4;
 
 struct bubble
 {
@@ -121,47 +121,9 @@ struct ripple
 };
 typedef struct ripple Ripple;
 
-int starIndex = 0;
-
-struct star
-{
-  int brightness;
-  int color;
-  int pos;
-  int OriginalPos;
-  int life;
-  int maxLife;
-  bool exist;
-
-  star() {
-    init();
-    OriginalPos = starIndex;
-    pos = OriginalPos;
-    starIndex++;
-  }
-  Shine() {
-    life++;
-    brightness -= 255 / maxLife;
-    if (life > maxLife || brightness <= 0) exist = false;
-    if (brightness < 0) brightness = 0;
-    if (pos < 0) pos = 0;
-    if (pos > NUM_LEDS - 1) pos = NUM_LEDS - 1;
-  }
-  init() {
-    life = 0;
-    maxLife = random(40, 60);
-    exist = false;
-    brightness = 255;
-    color = 160;
-    pos = OriginalPos;
-  }
-};
-typedef struct star Star;
-
 Ripple beat[maxBeats];
 Ripple ripple[maxRipples];
 Bubble bubble[maxBubbles];
-Bubble trail[maxTrails];
 
 uint16_t index = 0;
 uint16_t sampleCount = 0;
@@ -228,6 +190,7 @@ void loop() {
 
 void checkButton() {
   buttonState = digitalRead(BUTTON_PIN);
+  //Serial.println(buttonState);
   if (buttonState != buttonStatePrev && buttonState == 1)
     buttonStateChanged = true;
   else
@@ -261,7 +224,6 @@ void vu() {
   fadeToBlackBy(leds, NUM_LEDS, 85); //Looks smoother than using FastLED.clear()
   delay(5);
 }
-
 void dots() {
   uint16_t audio = readInput();
   uint16_t max_threshold = NUM_LEDS - 1;
@@ -273,11 +235,11 @@ void dots() {
   if (audio >= topLED)
     topLED = audio;
   else
-    topLED -= gravity * 0.8; //I decided to multiply gravity by this so I can decrease delay
+    topLED -= gravity;
   if (topLED < min_threshold)
     topLED = min_threshold;
 
-  leds[(int)topLED] = CHSV(hue, 255, 255); //Top led with gravity
+  leds[(int)topLED] = CHSV(hue, 255, 255);      //Top led with gravity
   leds[(int)topLED - 1] = leds[(int)topLED];    //His friend :D
 
   FastLED.show();
@@ -300,7 +262,7 @@ void split() { //Vu meter starting from middle of strip and doing same effect to
   if (topLED <= audio)
     topLED = audio;
   else
-    topLED -= (gravity / 2); //Divided by two because strip is split into half
+    topLED -= (gravity * 0.7);
   if (topLED < min_threshold)
     topLED = min_threshold;
 
@@ -311,7 +273,6 @@ void split() { //Vu meter starting from middle of strip and doing same effect to
   fadeToBlackBy(leds, NUM_LEDS, 85); //Looks smoother than using FastLED.clear()
   delay(5);
 }
-
 void brush() { // Swipes/brushes new color over the old one
   uint16_t audio = readInput();
   changeColor = false;
@@ -342,12 +303,11 @@ void brush() { // Swipes/brushes new color over the old one
   FastLED.show();
   FastLED.clear();
 }
-
 void beats() {
   uint16_t audio = readInput();
   changeColor = true;
-  MAX_VOL = audioMax(audio, 5);
-  uint8_t newBeats = fscale(MIC_MIN, MAX_VOL * 0.8, 2, maxBeats, audio, 0.5); //Max amount of beats to be spawned this loop
+  MAX_VOL = audioMax(audio, 4);
+  uint8_t newBeats = fscale(MIC_MIN, MAX_VOL, 2, maxBeats, audio, 0.5); //Max amount of beats to be spawned this loop
   if (newBeats % 2 != 0) //Must be divisible by two
     newBeats--;
 
@@ -371,10 +331,11 @@ void beats() {
   fadeToBlackBy(leds, NUM_LEDS, 60);
   delay(25);
 }
+
 void bubbles() { //Spawns bubbles that move when audio peaks enough
   uint16_t audio = readInput();
   changeColor = true;
-  MAX_VOL = audioMax(audio, 5);
+  MAX_VOL = audioMax(audio, 4);
   if (audio > MAX_VOL * sensitivity)
   {
     uint8_t randomBubble = random(maxBubbles);
@@ -395,13 +356,13 @@ void bubbles() { //Spawns bubbles that move when audio peaks enough
   }
   FastLED.show();
   FastLED.clear();
-  delay(5);
+ delay(5);
 }
+
 void ripples() {
   uint16_t audio = readInput();
   changeColor = false;
   MAX_VOL = audioMax(audio, 5);
-
   uint8_t newRipples = fscale(MIC_MIN, MAX_VOL, 2, maxRipples, audio, 0.5); //Max amount of ripples to be spawned this loop
   if (newRipples % 2 != 0) //Must be divisible by two
     newRipples--;
@@ -429,6 +390,7 @@ void ripples() {
   FastLED.clear();
   delay(12);
 }
+
 void trails() { //Spawns trails that move
   uint16_t audio = readInput();
   changeColor = true;
@@ -436,23 +398,23 @@ void trails() { //Spawns trails that move
   if (audio > MAX_VOL * sensitivity)
   {
     uint8_t randomTrail = random(maxTrails);
-    if (trail[randomTrail].exist) {
-      trail[randomTrail].life /= 2; //Extend life of trail
-      trail[randomTrail].NewColor(); // And give new color
+    if (bubble[randomTrail].exist) {
+      bubble[randomTrail].life /= 2; //Extend life of trail
+      bubble[randomTrail].NewColor(); // And give new color
     }
     else {
-      trail[randomTrail].exist = true;
-      trail[randomTrail].maxLife = 60;
+      bubble[randomTrail].exist = true;
+      bubble[randomTrail].maxLife = 60;
     }
   }
   for (int i = 0; i < maxTrails; i++) {
-    if (trail[i].exist) {
-      leds[(int)trail[i].pos] = CHSV(trail[i].color, 255, trail[i].brightness);
-      trail[i].Move();
+    if (bubble[i].exist) {
+      leds[(int)bubble[i].pos] = CHSV(bubble[i].color, 255, bubble[i].brightness);
+      bubble[i].Move();
     }
   }
   FastLED.show();
-  fadeToBlackBy(leds, NUM_LEDS, 51);
+  fadeToBlackBy(leds, NUM_LEDS, 43);
   delay(5);
 }
 void flash() { //Flashing strip
@@ -461,7 +423,7 @@ void flash() { //Flashing strip
   MAX_VOL = audioMax(audio, 4);
   cBrightness = fscale(MIC_MIN, MAX_VOL, 90, 255, audio, 0.5); //New brightness
 
-  if (pBrightness * 2 < cBrightness && cBrightness > 120) { //Previous compared to current with some extra threshold to avoid flickering
+  if (pBrightness < 50 && cBrightness > 180) { //Previous compared to current with some extra threshold to avoid flickering
     fill_solid(leds, NUM_LEDS, CHSV(hue, 255, cBrightness));
     hue += 3;
     pBrightness = cBrightness;
@@ -469,18 +431,17 @@ void flash() { //Flashing strip
   if (pBrightness < 20)
     pBrightness = 0;
   else
-    pBrightness -= 10;
+    pBrightness -= 5;
 
   FastLED.show();
   fill_solid(leds, NUM_LEDS, CHSV(hue, 255, pBrightness));
-  delay(20);
-}
+  delay(5);
 
+}
 void blank() {
-  EVERY_N_MILLISECONDS(50) {
     FastLED.clear();
     FastLED.show();
-  }
+    delay(5);
 }
 
 int readInput() {
