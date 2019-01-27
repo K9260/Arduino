@@ -6,6 +6,7 @@ FASTLED_USING_NAMESPACE
 #warning "Requires FastLED 3.1 or later; check github for latest code."
 #endif
 
+#define BUTTON_PIN  7
 #define DATA_PIN    2
 #define DATA_PIN2   3
 #define LED_TYPE    WS2812
@@ -13,7 +14,7 @@ FASTLED_USING_NAMESPACE
 #define NUM_LEDS    72
 #define MIC_MIN     0
 #define MIC_MAX     50
-#define NOISE       339
+#define NOISE       334
 #define SAMPLES     50
 #define MIN_VOL     15
 #define MIC_PIN     A0
@@ -161,7 +162,6 @@ Ripple beat[maxBeats];
 Ripple ripple[maxRipples];
 Bubble bubble[maxBubbles];
 Bubble trail[maxTrails];
-//Star star[NUM_LEDS];
 
 uint16_t index = 0;
 uint16_t sampleCount = 0;
@@ -169,67 +169,75 @@ uint16_t samples[SAMPLES];
 
 uint8_t cBrightness;
 uint8_t pBrightness = 0;
+uint8_t buttonState = 0;
+uint8_t buttonStatePrev = 0;
 
 float MAX_VOL = MIC_MAX;
-float sensitivity = 0.50; //Higher value = smaller sensitivity
+float sensitivity = 0.47; //Higher value = smaller sensitivity
 float gravity = 0.5; //Higher value = leds fall back down faster
 float topLED = 0;
 
 bool reversed = false;
 bool changeColor = false; //Does the function randomly change color every n seconds
+bool buttonStateChanged = false;
 
 void setup() {
   FastLED.addLeds<LED_TYPE, DATA_PIN, COLOR_ORDER>(leds, NUM_LEDS).setCorrection(TypicalLEDStrip);
   FastLED.addLeds<LED_TYPE, DATA_PIN2, COLOR_ORDER>(leds, NUM_LEDS).setCorrection(TypicalLEDStrip); //Currently running two strips
   Serial.begin(115200);
   pinMode(MIC_PIN, INPUT);
+  pinMode(BUTTON_PIN, INPUT);
   //initialize samples
   for (int i = 0; i < SAMPLES; i++)
     samples[i] = MIC_MAX;
 }
 void loop() {
+  checkButton();
+  if (buttonStateChanged)
+    index++;
+  if (index > 9)
+    index = 0;
 
-  // vu();
-  // dots();
-  // split();
-  // brush();
-  // beats();
-  // bubbles();
-  // ripples();
-  // trails();
-  // flash();
-  // stars();
-  
-    switch (index) {
-      case 0: vu();
-        break;
-      case 1: dots();
-        break;
-      case 2: split();
-        break;
-      case 3: brush();
-        break;
-      case 4: beats();
-        break;
-      case 5: bubbles();
-        break;
-      case 6: ripples();
+  switch (index) {
+    case 0: vu();
       break;
-      case 7: trails();
+    case 1: dots();
       break;
-      case 8: flash();
-    }
-    EVERY_N_SECONDS(30) {
-      index++;
-      if (index > 8)
-        index = 0;
-    }
+    case 2: split();
+      break;
+    case 3: brush();
+      break;
+    case 4: beats();
+      break;
+    case 5: bubbles();
+      break;
+    case 6: ripples();
+      break;
+    case 7: trails();
+      break;
+    case 8: flash();
+      break;
+    case 9: blank();
+      break;
+  }
   EVERY_N_SECONDS(10) {
     if (changeColor)
       hue = random(256); //Every 10 seconds pick random color
   }
 }
 
+void checkButton() {
+  buttonState = digitalRead(BUTTON_PIN);
+  if (buttonState != buttonStatePrev && buttonState == 1)
+    buttonStateChanged = true;
+  else
+    buttonStateChanged = false;
+ 
+  if(buttonState == 1) //Long press will rotate color
+  hue++;
+
+  buttonStatePrev = buttonState;
+}
 void vu() {
   uint16_t audio = readInput();
   uint16_t max_threshold = NUM_LEDS - 1;
@@ -244,10 +252,10 @@ void vu() {
   if (audio >= topLED)
     topLED = audio;
   else
-  topLED -= gravity;
-  if(topLED < min_threshold) 
-  topLED = min_threshold;
- 
+    topLED -= gravity;
+  if (topLED < min_threshold)
+    topLED = min_threshold;
+
   leds[(int)topLED] = CHSV(220, 255, 255); //Pink led as top led with gravity
   FastLED.show();
   fadeToBlackBy(leds, NUM_LEDS, 85); //Looks smoother than using FastLED.clear()
@@ -265,10 +273,10 @@ void dots() {
   if (audio >= topLED)
     topLED = audio;
   else
-  topLED -= gravity * 0.8; //I decided to multiply gravity by this so I can decrease delay
-  if(topLED < min_threshold) 
-  topLED = min_threshold;
- 
+    topLED -= gravity * 0.8; //I decided to multiply gravity by this so I can decrease delay
+  if (topLED < min_threshold)
+    topLED = min_threshold;
+
   leds[(int)topLED] = CHSV(hue, 255, 255); //Top led with gravity
   leds[(int)topLED - 1] = leds[(int)topLED];    //His friend :D
 
@@ -286,15 +294,15 @@ void split() { //Vu meter starting from middle of strip and doing same effect to
   audio = fscale(MIC_MIN, MAX_VOL, min_threshold, max_threshold, audio, 1.0);
   if (audio < MIN_LEDS / 2 + (NUM_LEDS / 2) && MAX_VOL <= MIN_VOL) audio = min_threshold; //Avoid flickering caused by small interference
   for (int i = min_threshold; i < audio; i++) {
-    leds[i] = CHSV(hue + i * 6, 250, 255); 
+    leds[i] = CHSV(hue + i * 6, 250, 255);
     leds[NUM_LEDS - i - 1] = leds[i]; //LEDS DRAWN DOWN
   }
   if (topLED <= audio)
     topLED = audio;
   else
-  topLED -= (gravity / 2); //Divided by two because strip is split into half
-  if(topLED < min_threshold) 
-  topLED = min_threshold;
+    topLED -= (gravity / 2); //Divided by two because strip is split into half
+  if (topLED < min_threshold)
+    topLED = min_threshold;
 
   leds[(int)topLED] = CHSV(220, 255, 255);         //Top led on top of strip (PINK)
   leds[NUM_LEDS - (int)topLED - 1] = leds[(int)topLED]; //On top of bottom half of strip
@@ -307,10 +315,10 @@ void split() { //Vu meter starting from middle of strip and doing same effect to
 void brush() { // Swipes/brushes new color over the old one
   uint16_t audio = readInput();
   changeColor = false;
-  MAX_VOL = audioMax(audio, 4);
+  MAX_VOL = audioMax(audio, 8);
   fill_solid(leds, NUM_LEDS, CHSV(hue, 255, 255));
-  if (audio > MAX_VOL) {
-    hue = random(255);
+  if (audio > MAX_VOL * sensitivity) {
+    hue = random(256);
     if (hue < 127)
       reversed = true;
     else
@@ -387,7 +395,7 @@ void bubbles() { //Spawns bubbles that move when audio peaks enough
   }
   FastLED.show();
   FastLED.clear();
-  delay(10);
+  delay(5);
 }
 void ripples() {
   uint16_t audio = readInput();
@@ -467,48 +475,13 @@ void flash() { //Flashing strip
   fill_solid(leds, NUM_LEDS, CHSV(hue, 255, pBrightness));
   delay(20);
 }
-/*
-void stars() {
-  uint16_t audio = readInput();
-  bool starsYoung = false;
-  changeColor = false;
-  MAX_VOL = audioMax(audio, 5);
-  if (audio > MAX_VOL) {
-    int color = random(140, 180);
-    //Go through collection of stars and check if they have only existed less than half of their life
-    for (int i = 0; i < NUM_LEDS; i++) {
-      if (star[i].life < (star[i].maxLife / 2) && star[i].life > 0)
-        starsYoung = true;
-    }
-    //Fill strip with stars
-    for (int i = 0; i < NUM_LEDS; i++) {
-      if (!starsYoung) {
-        star[i].init();
-        star[i].color = color;
-        leds[i] = CHSV(star[i].color, 255, star[i].brightness);
-        star[i].exist = true;
-      }
-    }
+
+void blank() {
+  EVERY_N_MILLISECONDS(50) {
+    FastLED.clear();
+    FastLED.show();
   }
-  for (int i = 0; i < NUM_LEDS; i += 2) {
-    int randomStar = random(NUM_LEDS);
-    if (star[i].exist || star[randomStar].exist) {
-      leds[star[i].pos] = CHSV(star[i].color, 255, star[i].brightness);
-      leds[star[randomStar].pos] = CHSV(star[randomStar].color, 255, star[randomStar].brightness);
-      //Extend life and decrease brightness of star
-      star[i].Shine();
-      star[randomStar].Shine();
-      //Swap positions of these stars
-      int temp = star[i].pos;
-      star[i].pos = star[randomStar].pos;
-      star[randomStar].pos = temp;
-    }
-  }
-  FastLED.show();
-  FastLED.clear();
-  delay(10);
 }
-*/
 
 int readInput() {
   int audio = analogRead(MIC_PIN);
