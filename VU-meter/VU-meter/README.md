@@ -15,5 +15,5 @@ Few variables you might also want to play with are:
 - const int maxTrails
 </strong>
 
-Video of my build
-https://www.youtube.com/watch?v=Box-O3KY1qI&t=178s
+Video of my build:
+https://www.youtube.com/watch?v=Box-O3KY1qI&t=
