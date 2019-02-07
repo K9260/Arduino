@@ -6,6 +6,7 @@ FASTLED_USING_NAMESPACE
 #warning "Requires FastLED 3.1 or later; check github for latest code."
 #endif
 
+#define INDICATOR   5
 #define BUTTON_PIN  7
 #define DATA_PIN    2
 #define DATA_PIN2   3
@@ -14,7 +15,7 @@ FASTLED_USING_NAMESPACE
 #define NUM_LEDS    72
 #define MIC_MIN     0
 #define MIC_MAX     50
-#define NOISE       334
+#define NOISE       334 //For MAX4466 mic, 339 might work also
 #define SAMPLES     50
 #define MIN_VOL     15
 #define MIC_PIN     A0
@@ -43,7 +44,7 @@ struct bubble
   bubble() {
     init();
   }
-  Move() {
+ void Move() {
     if (velocity > maxVelocity)
       velocity = maxVelocity;
     pos += velocity;
@@ -62,11 +63,11 @@ struct bubble
     if (!exist)
       init();
   }
-  NewColor() {
+ void NewColor() {
     color = hue + random(20);
     brightness = 255;
   }
-  init() {
+ void init() {
     pos = random(0, NUM_LEDS);
     velocity = 0.5 + (random(30) * 0.01); // Increase or decrease if needed
     life = 0;
@@ -93,7 +94,7 @@ struct ripple
   ripple() {
     init(0.85, 20);
   }
-  Move() {
+ void Move() {
     pos += velocity;
     life++;
     if (pos > NUM_LEDS - 1) {
@@ -108,7 +109,7 @@ struct ripple
     if (life > maxLife || brightness < 50) exist = false;
     if (!exist) init(0.85, 20);
   }
-  init(float Fade, int MaxLife) {
+ void init(float Fade, int MaxLife) {
     pos = random(NUM_LEDS / 8, NUM_LEDS - NUM_LEDS / 8); //Avoid spawning too close to edge
     velocity = 1;
     life = 0;
@@ -125,7 +126,7 @@ Ripple beat[maxBeats];
 Ripple ripple[maxRipples];
 Bubble bubble[maxBubbles];
 
-uint16_t index = 0;
+int indexP = 0; //Index of running program
 uint16_t sampleCount = 0;
 uint16_t samples[SAMPLES];
 
@@ -149,6 +150,7 @@ void setup() {
   Serial.begin(115200);
   pinMode(MIC_PIN, INPUT);
   pinMode(BUTTON_PIN, INPUT);
+  pinMode(INDICATOR, OUTPUT);
   //initialize samples
   for (int i = 0; i < SAMPLES; i++)
     samples[i] = MIC_MAX;
@@ -156,11 +158,13 @@ void setup() {
 void loop() {
   checkButton();
   if (buttonStateChanged)
-    index++;
-  if (index > 9)
-    index = 0;
-
-  switch (index) {
+    indexP++;
+  if (indexP > 9)
+    indexP = 0;
+  if (indexP != 9)
+    digitalWrite(INDICATOR, HIGH); //Indication led is on if we are not running blank
+    
+  switch (indexP) {
     case 0: vu();
       break;
     case 1: dots();
@@ -195,9 +199,9 @@ void checkButton() {
     buttonStateChanged = true;
   else
     buttonStateChanged = false;
- 
-  if(buttonState == 1) //Long press will rotate color
-  hue++;
+
+  if (buttonState == 1) //Long press will rotate color
+    hue++;
 
   buttonStatePrev = buttonState;
 }
@@ -356,7 +360,7 @@ void bubbles() { //Spawns bubbles that move when audio peaks enough
   }
   FastLED.show();
   FastLED.clear();
- delay(5);
+  delay(5);
 }
 
 void ripples() {
@@ -439,9 +443,10 @@ void flash() { //Flashing strip
 
 }
 void blank() {
-    FastLED.clear();
-    FastLED.show();
-    delay(5);
+  digitalWrite(INDICATOR, LOW);
+  FastLED.clear();
+  FastLED.show();
+  delay(5);
 }
 
 int readInput() {
