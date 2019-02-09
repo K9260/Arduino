@@ -1,5 +1,5 @@
 #include <FastLED.h>
-#include <math.h>
+//#include <math.h>
 FASTLED_USING_NAMESPACE
 
 #if defined(FASTLED_VERSION) && (FASTLED_VERSION < 3001000)
@@ -29,22 +29,23 @@ const int maxBeats = 10; //Min is 2 and value has to be divisible by two
 const int maxBubbles = NUM_LEDS / 3; //Decrease if there is too much action going on
 const int maxRipples = 6; //Min is 2 and value has to be divisible by two
 const int maxTrails = 4;
+const int maxBlocks = 4;
 
 struct bubble
 {
-  int brightness;
-  int color;
+  uint8_t brightness;
+  uint8_t color;
   float pos;
   float velocity;
-  int life;
-  int maxLife;
-  int maxVelocity;
+  uint16_t life;
+  uint16_t maxLife;
+  int8_t maxVelocity;
   bool exist;
 
   bubble() {
     init();
   }
- void Move() {
+  void Move() {
     if (velocity > maxVelocity)
       velocity = maxVelocity;
     pos += velocity;
@@ -63,11 +64,11 @@ struct bubble
     if (!exist)
       init();
   }
- void NewColor() {
+  void NewColor() {
     color = hue + random(20);
     brightness = 255;
   }
- void init() {
+  void init() {
     pos = random(0, NUM_LEDS);
     velocity = 0.5 + (random(30) * 0.01); // Increase or decrease if needed
     life = 0;
@@ -82,19 +83,19 @@ typedef struct bubble Bubble;
 
 struct ripple
 {
-  int brightness;
-  int color;
-  int pos;
-  int velocity;
-  int life;
-  int maxLife;
+  uint8_t brightness;
+  uint8_t color;
+  uint8_t pos;
+  int8_t velocity;
+  uint16_t life;
+  uint16_t maxLife;
   float fade;
   bool exist;
 
   ripple() {
     init(0.85, 20);
   }
- void Move() {
+  void Move() {
     pos += velocity;
     life++;
     if (pos > NUM_LEDS - 1) {
@@ -109,7 +110,7 @@ struct ripple
     if (life > maxLife || brightness < 50) exist = false;
     if (!exist) init(0.85, 20);
   }
- void init(float Fade, int MaxLife) {
+  void init(float Fade, int MaxLife) {
     pos = random(NUM_LEDS / 8, NUM_LEDS - NUM_LEDS / 8); //Avoid spawning too close to edge
     velocity = 1;
     life = 0;
@@ -122,18 +123,56 @@ struct ripple
 };
 typedef struct ripple Ripple;
 
+uint8_t blockCount = 0;
+
+struct block
+{
+  uint8_t pos[NUM_LEDS / 8]; //Array of led positions in the block
+  uint8_t startPoint; //Where the block will start
+
+  block() {
+    init();
+    blockCount++;
+  }
+  void moveUp() {
+    for (int i = 0; i < NUM_LEDS / 8; i++) {
+      pos[i]++;
+    }
+  }
+  void moveDown() {
+    for (int i = 0; i < NUM_LEDS / 8; i++) {
+      pos[i]--;
+    }
+  }
+  void init() {
+    if (blockCount > 0)
+      startPoint = (NUM_LEDS / 8) * blockCount * 2;
+    else
+      startPoint = 0;
+
+    for (int i = 0; i < NUM_LEDS / 8; i++) {
+      pos[i] = startPoint + i;
+    }
+  }
+};
+typedef struct block Block;
+
+
 Ripple beat[maxBeats];
 Ripple ripple[maxRipples];
 Bubble bubble[maxBubbles];
+Block block[maxBlocks];
 
-int indexP = 0; //Index of running program
+uint8_t indexP = 0; //Index of running program
+
 uint16_t sampleCount = 0;
 uint16_t samples[SAMPLES];
-
 uint8_t cBrightness;
 uint8_t pBrightness = 0;
 uint8_t buttonState = 0;
 uint8_t buttonStatePrev = 0;
+uint8_t blockMoves = 0;
+uint8_t block_dir;
 
 float MAX_VOL = MIC_MAX;
 float sensitivity = 0.47; //Higher value = smaller sensitivity
@@ -143,6 +182,11 @@ float topLED = 0;
 bool reversed = false;
 bool changeColor = false; //Does the function randomly change color every n seconds
 bool buttonStateChanged = false;
+
+bool permission_to_move = false;
+bool one_block = false;
+bool two_blocks = false;
+bool four_blocks = true;
 
 void setup() {
   FastLED.addLeds<LED_TYPE, DATA_PIN, COLOR_ORDER>(leds, NUM_LEDS).setCorrection(TypicalLEDStrip);
@@ -163,7 +207,6 @@ void loop() {
     indexP = 0;
   if (indexP != 9)
     digitalWrite(INDICATOR, HIGH); //Indication led is on if we are not running blank
-    
   switch (indexP) {
     case 0: vu();
       break;
@@ -183,7 +226,9 @@ void loop() {
       break;
     case 8: flash();
       break;
-    case 9: blank();
+    case 9: blocks();
+      break;
+    case 10: blank();
       break;
   }
   EVERY_N_SECONDS(10) {
@@ -207,13 +252,13 @@ void checkButton() {
 }
 void vu() {
   uint16_t audio = readInput();
-  uint16_t max_threshold = NUM_LEDS - 1;
-  uint16_t min_threshold = 0;
+  uint8_t max_threshold = NUM_LEDS - 1;
+  uint8_t min_threshold = 0;
   changeColor = true;
   MAX_VOL = audioMax(audio, 5);
   audio = fscale(MIC_MIN, MAX_VOL, min_threshold, max_threshold, audio, 0.5);
   if (audio < MIN_LEDS && MAX_VOL <= MIN_VOL) audio = 0; //Avoid flickering caused by small interference
-  for (int i = 0; i < audio; i++) {
+  for (uint8_t i = 0; i < audio; i++) {
     leds[i] = CHSV(hue + i * 2, 255, 255);
   }
   if (audio >= topLED)
@@ -223,15 +268,15 @@ void vu() {
   if (topLED < min_threshold)
     topLED = min_threshold;
 
-  leds[(int)topLED] = CHSV(220, 255, 255); //Pink led as top led with gravity
+  leds[(uint8_t)topLED] = CHSV(220, 255, 255); //Pink led as top led with gravity
   FastLED.show();
   fadeToBlackBy(leds, NUM_LEDS, 85); //Looks smoother than using FastLED.clear()
   delay(5);
 }
 void dots() {
   uint16_t audio = readInput();
-  uint16_t max_threshold = NUM_LEDS - 1;
-  uint16_t min_threshold = 1;
+  uint8_t max_threshold = NUM_LEDS - 1;
+  uint8_t min_threshold = 1;
   changeColor = true;
   MAX_VOL = audioMax(audio, 5);
   audio = fscale(MIC_MIN, MAX_VOL, min_threshold, max_threshold, audio, 0.5);
@@ -243,8 +288,8 @@ void dots() {
   if (topLED < min_threshold)
     topLED = min_threshold;
 
-  leds[(int)topLED] = CHSV(hue, 255, 255);      //Top led with gravity
-  leds[(int)topLED - 1] = leds[(int)topLED];    //His friend :D
+  leds[(uint8_t)topLED] = CHSV(hue, 255, 255);      //Top led with gravity
+  leds[(uint8_t)topLED - 1] = leds[(uint8_t)topLED];    //His friend :D
 
   FastLED.show();
   FastLED.clear();
@@ -253,13 +298,13 @@ void dots() {
 
 void split() { //Vu meter starting from middle of strip and doing same effect to both directions
   uint16_t audio = readInput();
-  uint16_t max_threshold = NUM_LEDS - 1;
-  uint16_t min_threshold = NUM_LEDS / 2;
+  uint8_t max_threshold = NUM_LEDS - 1;
+  uint8_t min_threshold = NUM_LEDS / 2;
   changeColor = true;
   MAX_VOL = audioMax(audio, 6);
   audio = fscale(MIC_MIN, MAX_VOL, min_threshold, max_threshold, audio, 1.0);
   if (audio < MIN_LEDS / 2 + (NUM_LEDS / 2) && MAX_VOL <= MIN_VOL) audio = min_threshold; //Avoid flickering caused by small interference
-  for (int i = min_threshold; i < audio; i++) {
+  for (uint8_t i = min_threshold; i < audio; i++) {
     leds[i] = CHSV(hue + i * 6, 250, 255);
     leds[NUM_LEDS - i - 1] = leds[i]; //LEDS DRAWN DOWN
   }
@@ -270,8 +315,8 @@ void split() { //Vu meter starting from middle of strip and doing same effect to
   if (topLED < min_threshold)
     topLED = min_threshold;
 
-  leds[(int)topLED] = CHSV(220, 255, 255);         //Top led on top of strip (PINK)
-  leds[NUM_LEDS - (int)topLED - 1] = leds[(int)topLED]; //On top of bottom half of strip
+  leds[(uint8_t)topLED] = CHSV(220, 255, 255);         //Top led on top of strip (PINK)
+  leds[NUM_LEDS - (uint8_t)topLED - 1] = leds[(uint8_t)topLED]; //On top of bottom half of strip
 
   FastLED.show();
   fadeToBlackBy(leds, NUM_LEDS, 85); //Looks smoother than using FastLED.clear()
@@ -290,14 +335,14 @@ void brush() { // Swipes/brushes new color over the old one
       reversed = false;
 
     if (!reversed) {
-      for (int i = 0; i < NUM_LEDS; i++) { //Draw one led at a time (UP)
+      for (uint8_t i = 0; i < NUM_LEDS; i++) { //Draw one led at a time (UP)
         leds[i] = CHSV(hue, 255, 255);
         FastLED.show();
         delay(5);
       }
     }
     else {
-      for (int i = NUM_LEDS - 1; i >= 0; i--) { //Draw one led at a time (DOWN)
+      for (uint8_t i = NUM_LEDS - 1; i >= 0; i--) { //Draw one led at a time (DOWN)
         leds[i] = CHSV(hue, 255, 255);
         FastLED.show();
         delay(5);
@@ -325,7 +370,7 @@ void beats() {
       beat[i + 1].velocity *= -1; //because we want the other to go opposite direction
     }
   }
-  for (int i = 0; i < maxBeats; i++) {
+  for (uint8_t i = 0; i < maxBeats; i++) {
     if (beat[i].exist) {
       leds[beat[i].pos] = CHSV(beat[i].color, 255, beat[i].brightness);
       beat[i].Move();
@@ -352,7 +397,7 @@ void bubbles() { //Spawns bubbles that move when audio peaks enough
       bubble[randomBubble].NewColor();
     }
   }
-  for (int i = 0; i < maxBubbles; i++) {
+  for (uint8_t i = 0; i < maxBubbles; i++) {
     if (bubble[i].exist) {
       leds[(int)bubble[i].pos] = CHSV(bubble[i].color, 255, bubble[i].brightness);
       bubble[i].Move();
@@ -376,7 +421,7 @@ void ripples() {
   }
   uint8_t b = beatsin8(30, 70, 90); //Pulsing brightness for background (pulses,min,max)
   fill_solid(leds, NUM_LEDS, CHSV(hue, 255, b)); //Delete this line if you dont like background color
-  for (int i = 0; i < newRipples; i += 2) {
+  for (uint8_t i = 0; i < newRipples; i += 2) {
     if (audio > MAX_VOL * sensitivity * 0.65 && !ripple[i].exist) {
       ripple[i].init(0.88, 20); //initiliaze just in case color has changed after last init
       ripple[i].exist = true;
@@ -384,7 +429,7 @@ void ripples() {
       ripple[i + 1].velocity *= -1; //because we want the other to go opposite direction
     }
   }
-  for (int i = 0; i < maxRipples; i++) {
+  for (uint8_t i = 0; i < maxRipples; i++) {
     if (ripple[i].exist) {
       leds[ripple[i].pos] = CHSV(ripple[i].color + 30, 180, ripple[i].brightness);
       ripple[i].Move();
@@ -411,7 +456,7 @@ void trails() { //Spawns trails that move
       bubble[randomTrail].maxLife = 60;
     }
   }
-  for (int i = 0; i < maxTrails; i++) {
+  for (uint8_t i = 0; i < maxTrails; i++) {
     if (bubble[i].exist) {
       leds[(int)bubble[i].pos] = CHSV(bubble[i].color, 255, bubble[i].brightness);
       bubble[i].Move();
@@ -440,8 +485,115 @@ void flash() { //Flashing strip
   FastLED.show();
   fill_solid(leds, NUM_LEDS, CHSV(hue, 255, pBrightness));
   delay(5);
-
 }
+
+void blocks() {
+  uint16_t audio = readInput();
+  uint8_t movement;
+  changeColor = false;
+  MAX_VOL = audioMax(audio, 4);
+  if (MAX_VOL < audio) {
+    permission_to_move = true;
+  }
+  if (permission_to_move) {
+    if (one_block)
+      movement = 3;
+    else if (two_blocks) {
+      if (blockMoves == 0) //To not change direction of block during the transition
+        block_dir = random(2);
+      if (block_dir == 0)
+        movement = 1;
+      else
+        movement = 2;
+    }
+    else if (four_blocks)
+      movement = 0;
+
+    switch (movement) {
+      case 0: four_blocks_close();
+        break;
+      case 1: four_blocks_open();
+        break;
+      case 2: two_blocks_close();
+        break;
+      case 3: two_blocks_open();
+        break;
+    }
+    delay(10);
+  }
+  uint8_t bounce = beatsin8(60, 0, NUM_LEDS / 8); //Bounces all leds up and down in circular motion
+  for (uint8_t j = 0; j < maxBlocks; j++) {
+    for (uint8_t i = 0; i < NUM_LEDS / 8; i++) {
+      leds[block[j].pos[i] + bounce] = CHSV(hue, 255, 255);
+    }
+  }
+  FastLED.show();
+  FastLED.clear();
+}
+
+void four_blocks_close() { // Four blocks close into two blocks
+  for (int i = 0; i < maxBlocks; i++) {
+    if (i % (maxBlocks / 2) == 0)
+      block[i].moveUp();
+    else
+      block[i].moveDown();
+  }
+  blockMoves++;
+  if (blockMoves > NUM_LEDS / 16) {
+    two_blocks = true;
+    four_blocks = false;
+    permission_to_move = false;
+    hue += 20;
+    blockMoves = 0;
+  }
+}
+void two_blocks_close() { // Two blocks close into one
+  for (uint8_t i = 0; i < maxBlocks; i++) {
+    if (i < (maxBlocks / 2))
+      block[i].moveUp();
+    else
+      block[i].moveDown();
+  }
+  blockMoves++;
+  if (blockMoves > NUM_LEDS / 8) {
+    one_block = true;
+    two_blocks = false;
+    permission_to_move = false;
+    hue = random(256);
+    blockMoves = 0;
+  }
+}
+void two_blocks_open() { //One block opens into two
+  for (uint8_t i = 0; i < maxBlocks; i++) {
+    if (i < (maxBlocks / 2))
+      block[i].moveDown();
+    else
+      block[i].moveUp();
+  }
+  blockMoves++;
+  if (blockMoves > NUM_LEDS / 8) {
+    two_blocks = true;
+    one_block = false;
+    permission_to_move = false;
+    blockMoves = 0;
+  }
+}
+void four_blocks_open() { //Two blocks open into four
+  for (uint8_t i = 0; i < maxBlocks; i++) {
+    if (i % (maxBlocks / 2) == 0)
+      block[i].moveDown();
+    else
+      block[i].moveUp();
+  }
+  blockMoves++;
+  if (blockMoves > NUM_LEDS / 16) {
+    two_blocks = false;
+    four_blocks = true;
+    permission_to_move = false;
+    blockMoves = 0;
+  }
+}
+
 void blank() {
   digitalWrite(INDICATOR, LOW);
   FastLED.clear();
@@ -450,7 +602,7 @@ void blank() {
 }
 
 int readInput() {
-  int audio = analogRead(MIC_PIN);
+  int16_t audio = analogRead(MIC_PIN);
   //Serial.println(audio);
   audio -= NOISE;
   audio = abs(audio); //Turns negative value to positive
