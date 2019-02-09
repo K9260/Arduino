@@ -1,5 +1,4 @@
 #include <FastLED.h>
-//#include <math.h>
 FASTLED_USING_NAMESPACE
 
 #if defined(FASTLED_VERSION) && (FASTLED_VERSION < 3001000)
@@ -207,30 +206,30 @@ void loop() {
     indexP = 0;
   if (indexP != 10)
     digitalWrite(INDICATOR, HIGH); //Indication led is on if we are not running blank
-  switch (indexP) {
-    case 0: vu();
-      break;
-    case 1: dots();
-      break;
-    case 2: split();
-      break;
-    case 3: brush();
-      break;
-    case 4: beats();
-      break;
-    case 5: bubbles();
-      break;
-    case 6: ripples();
-      break;
-    case 7: trails();
-      break;
-    case 8: flash();
-      break;
-    case 9: blocks();
-      break;
-    case 10: blank();
-      break;
-  }
+    switch (indexP) {
+      case 0: vu();
+        break;
+      case 1: dots();
+        break;
+      case 2: split();
+        break;
+      case 3: brush();
+        break;
+      case 4: beats();
+        break;
+      case 5: bubbles();
+        break;
+      case 6: ripples();
+        break;
+      case 7: trails();
+        break;
+      case 8: flash();
+        break;
+      case 9: blocks();
+        break;
+      case 10: blank();
+        break;
+    }
   EVERY_N_SECONDS(10) {
     if (changeColor)
       hue = random(256); //Every 10 seconds pick random color
@@ -342,7 +341,7 @@ void brush() { // Swipes/brushes new color over the old one
       }
     }
     else {
-      for (uint8_t i = NUM_LEDS - 1; i >= 0; i--) { //Draw one led at a time (DOWN)
+      for (uint8_t i = NUM_LEDS - 1; i > 0; i--) { //Draw one led at a time (DOWN)
         leds[i] = CHSV(hue, 255, 255);
         FastLED.show();
         delay(5);
@@ -491,33 +490,23 @@ void blocks() {
   uint16_t audio = readInput();
   uint8_t movement;
   changeColor = false;
-  MAX_VOL = audioMax(audio, 4);
+  MAX_VOL = audioMax(audio, 3);
   if (MAX_VOL < audio) {
     permission_to_move = true;
   }
   if (permission_to_move) {
     if (one_block)
-      movement = 3;
+      two_blocks_open();
     else if (two_blocks) {
       if (blockMoves == 0) //To not change direction of block during the transition
         block_dir = random(2);
       if (block_dir == 0)
-        movement = 1;
+        four_blocks_open();
       else
-        movement = 2;
+        two_blocks_close();
     }
-    else if (four_blocks)
-      movement = 0;
-
-    switch (movement) {
-      case 0: four_blocks_close();
-        break;
-      case 1: four_blocks_open();
-        break;
-      case 2: two_blocks_close();
-        break;
-      case 3: two_blocks_open();
-        break;
+    else if (four_blocks) {
+        four_blocks_close();
     }
     delay(10);
   }
