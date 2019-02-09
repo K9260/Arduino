@@ -203,9 +203,9 @@ void loop() {
   checkButton();
   if (buttonStateChanged)
     indexP++;
-  if (indexP > 9)
+  if (indexP > 10)
     indexP = 0;
-  if (indexP != 9)
+  if (indexP != 10)
     digitalWrite(INDICATOR, HIGH); //Indication led is on if we are not running blank
   switch (indexP) {
     case 0: vu();
