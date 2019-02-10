@@ -163,7 +163,7 @@ Bubble bubble[maxBubbles];
 Block block[maxBlocks];
 
 uint8_t indexP = 0; //Index of running program
-
+uint32_t lastTime = 0;
 uint16_t sampleCount = 0;
 uint16_t samples[SAMPLES];
 uint8_t cBrightness;
@@ -206,30 +206,30 @@ void loop() {
     indexP = 0;
   if (indexP != 10)
     digitalWrite(INDICATOR, HIGH); //Indication led is on if we are not running blank
-    switch (indexP) {
-      case 0: vu();
-        break;
-      case 1: dots();
-        break;
-      case 2: split();
-        break;
-      case 3: brush();
-        break;
-      case 4: beats();
-        break;
-      case 5: bubbles();
-        break;
-      case 6: ripples();
-        break;
-      case 7: trails();
-        break;
-      case 8: flash();
-        break;
-      case 9: blocks();
-        break;
-      case 10: blank();
-        break;
-    }
+  switch (indexP) {
+    case 0: vu();
+      break;
+    case 1: dots();
+      break;
+    case 2: split();
+      break;
+    case 3: brush();
+      break;
+    case 4: beats();
+      break;
+    case 5: bubbles();
+      break;
+    case 6: ripples();
+      break;
+    case 7: trails();
+      break;
+    case 8: flash();
+      break;
+    case 9: blocks();
+      break;
+    case 10: blank();
+      break;
+  }
   EVERY_N_SECONDS(10) {
     if (changeColor)
       hue = random(256); //Every 10 seconds pick random color
@@ -488,25 +488,28 @@ void flash() { //Flashing strip
 
 void blocks() {
   uint16_t audio = readInput();
+  uint32_t currentTime = millis();
+  uint16_t interval = 300; //How long to wait before next block movement can be done(milliseconds)
   uint8_t movement;
   changeColor = false;
   MAX_VOL = audioMax(audio, 3);
-  if (MAX_VOL < audio) {
-    permission_to_move = true;
+  if (MAX_VOL < audio && (uint32_t)(currentTime - lastTime) > interval) { //Casting done with uint to overcome millis
+    permission_to_move = true;                                         //looping over
+    lastTime = currentTime;
   }
   if (permission_to_move) {
     if (one_block)
       two_blocks_open();
     else if (two_blocks) {
       if (blockMoves == 0) //To not change direction of block during the transition
-        block_dir = random(2);
+        block_dir = random(2); //Randomize if to close into one block or open into four
       if (block_dir == 0)
         four_blocks_open();
       else
         two_blocks_close();
     }
     else if (four_blocks) {
-        four_blocks_close();
+      four_blocks_close();
     }
     delay(10);
   }
