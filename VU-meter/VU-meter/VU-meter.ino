@@ -88,11 +88,10 @@ struct ripple
   int8_t velocity;
   uint16_t life;
   uint16_t maxLife;
-  float fade;
   bool exist;
 
   ripple() {
-    init(0.85, 20);
+    init(15);
   }
   void Move() {
     pos += velocity;
@@ -105,11 +104,11 @@ struct ripple
       velocity *= -1;
       pos = 0;
     }
-    brightness *= fade; //Adjust accordinly to strip length
-    if (life > maxLife || brightness < 50) exist = false;
-    if (!exist) init(0.85, 20);
+    brightness -= (255 / maxLife);
+    if (life > maxLife || brightness < 15) exist = false;
+    if (!exist) init(20);
   }
-  void init(float Fade, int MaxLife) {
+  void init(int MaxLife) {
     pos = random(NUM_LEDS / 8, NUM_LEDS - NUM_LEDS / 8); //Avoid spawning too close to edge
     velocity = 1;
     life = 0;
@@ -117,7 +116,6 @@ struct ripple
     exist = false;
     brightness = 255;
     color = hue;
-    fade = Fade;
   }
 };
 typedef struct ripple Ripple;
@@ -155,7 +153,6 @@ struct block
   }
 };
 typedef struct block Block;
-
 
 Ripple beat[maxBeats];
 Ripple ripple[maxRipples];
@@ -202,9 +199,9 @@ void loop() {
   checkButton();
   if (buttonStateChanged)
     indexP++;
-  if (indexP > 10)
+  if (indexP > 9)
     indexP = 0;
-  if (indexP != 10)
+  if (indexP != 9)
     digitalWrite(INDICATOR, HIGH); //Indication led is on if we are not running blank
   switch (indexP) {
     case 0: vu();
@@ -223,11 +220,9 @@ void loop() {
       break;
     case 7: trails();
       break;
-    case 8: flash();
+    case 8: blocks();
       break;
-    case 9: blocks();
-      break;
-    case 10: blank();
+    case 9: blank();
       break;
   }
   EVERY_N_SECONDS(10) {
@@ -361,8 +356,8 @@ void beats() {
 
   for (int i = 0; i < newBeats; i += 2) {
     if (audio > MAX_VOL * sensitivity * 0.55 && !beat[i].exist) {
-      uint8_t beatlife = random(4, 8); //Longer life = longer length
-      beat[i].init(0.8, beatlife); //initialize fade and life
+      uint8_t beatlife = random(6, 8); //Longer life = longer length
+      beat[i].init(beatlife); //initialize life
       beat[i].exist = true;
       beat[i].color += random(30);
       beat[i + 1] = beat[i]; //Everything except velocity is the same for other beats twin
@@ -377,7 +372,7 @@ void beats() {
   }
   FastLED.show();
   fadeToBlackBy(leds, NUM_LEDS, 60);
-  delay(25);
+  delay(30);
 }
 
 void bubbles() { //Spawns bubbles that move when audio peaks enough
@@ -422,7 +417,7 @@ void ripples() {
   fill_solid(leds, NUM_LEDS, CHSV(hue, 255, b)); //Delete this line if you dont like background color
   for (uint8_t i = 0; i < newRipples; i += 2) {
     if (audio > MAX_VOL * sensitivity * 0.65 && !ripple[i].exist) {
-      ripple[i].init(0.88, 20); //initiliaze just in case color has changed after last init
+      ripple[i].init(15); //initiliaze just in case color has changed after last init
       ripple[i].exist = true;
       ripple[i + 1] = ripple[i]; //Everything except velocity is the same for other ripples twin
       ripple[i + 1].velocity *= -1; //because we want the other to go opposite direction
@@ -436,7 +431,7 @@ void ripples() {
   }
   FastLED.show();
   FastLED.clear();
-  delay(12);
+  delay(15);
 }
 
 void trails() { //Spawns trails that move
@@ -463,26 +458,6 @@ void trails() { //Spawns trails that move
   }
   FastLED.show();
   fadeToBlackBy(leds, NUM_LEDS, 43);
-  delay(5);
-}
-void flash() { //Flashing strip
-  uint16_t audio = readInput();
-  changeColor = false;
-  MAX_VOL = audioMax(audio, 4);
-  cBrightness = fscale(MIC_MIN, MAX_VOL, 90, 255, audio, 0.5); //New brightness
-
-  if (pBrightness < 50 && cBrightness > 180) { //Previous compared to current with some extra threshold to avoid flickering
-    fill_solid(leds, NUM_LEDS, CHSV(hue, 255, cBrightness));
-    hue += 3;
-    pBrightness = cBrightness;
-  }
-  if (pBrightness < 20)
-    pBrightness = 0;
-  else
-    pBrightness -= 5;
-
-  FastLED.show();
-  fill_solid(leds, NUM_LEDS, CHSV(hue, 255, pBrightness));
   delay(5);
 }
 
