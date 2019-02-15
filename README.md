@@ -8,7 +8,7 @@ They were not planned to be shared but few people asked for them so here they ar
 So <strong>please understand</strong> they are nothing very fancy nor well commented.
 <br>
 <br>
-VU-meter is the newest and still under developement, but it is starting to look very good.
+VU-meter is the newest and working well with different strip lenghts
 <br>
 <br>
 You will need a microphone to your arduino board - I used one called "MX 4466".
