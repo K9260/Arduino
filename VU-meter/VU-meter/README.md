@@ -2,7 +2,7 @@ For VU-meter what you need to do is to insert microphone Vcc to 3.3V, GND TO GND
 <br>
 If you are not using arduino, you must define the data pin yourself, it just has to be analog input.
 <br>
-There is also button now defined for changing effects. At the moment I do not have schematic to share for it
+There is also button now defined for changing effects. At the moment I do not have schematic to share for it.
 <br>
 Then all you need to adjust in the code is NUM_LEDS.
 <br>
