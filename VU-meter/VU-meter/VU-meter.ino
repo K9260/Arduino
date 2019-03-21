@@ -1,3 +1,10 @@
+/*
+ * VU meter
+ * By Reko Meriö
+ * https://github.com/K9260
+*/
+
+
 #include <FastLED.h>
 FASTLED_USING_NAMESPACE
 
@@ -593,7 +600,7 @@ float audioMax(int audio, int multiplier) {
   if (MAX_VOL < MIN_VOL) MAX_VOL = MIN_VOL;
   if (sampleCount >= SAMPLES) sampleCount = 0;
 
-  Serial.println(MAX_VOL);
+  //Serial.println(MAX_VOL);
   return MAX_VOL; //Returning this might seem useless, but I believe it makes the functions more easily readable
 }
 
