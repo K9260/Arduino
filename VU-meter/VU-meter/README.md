@@ -9,10 +9,10 @@ Then all you need to adjust in the code is NUM_LEDS.
 Few variables you might also want to play with are: 
 <strong>
 
-- const int maxBeats
-- const int maxBubbles
-- const int maxRipples
-- const int maxTrails
+* MAXBEATS
+* MAXBUBBLES
+* MAXRIPPLES
+* MAXTRAILS
 </strong>
 
 Video of my build:
