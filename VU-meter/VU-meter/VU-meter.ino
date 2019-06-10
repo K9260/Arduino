@@ -27,15 +27,15 @@ FASTLED_USING_NAMESPACE
 #define MIC_PIN     A0
 #define MIN_LEDS    14
 
+#define MAXBEATS 10               //Min is 2 and value has to be divisible by two
+#define MAXBUBBLES (NUM_LEDS / 3) //Decrease if there is too much action going on
+#define MAXRIPPLES 6              //Min is 2 and value has to be divisible by two
+#define MAXTRAILS 4
+#define MAXBLOCKS 4
+
 CRGB leds[NUM_LEDS];
 
 uint8_t hue = 0;
-
-const int maxBeats = 10; //Min is 2 and value has to be divisible by two
-const int maxBubbles = NUM_LEDS / 3; //Decrease if there is too much action going on
-const int maxRipples = 6; //Min is 2 and value has to be divisible by two
-const int maxTrails = 4;
-const int maxBlocks = 4;
 
 struct bubble
 {
@@ -161,21 +161,24 @@ struct block
 };
 typedef struct block Block;
 
-Ripple beat[maxBeats];
-Ripple ripple[maxRipples];
-Bubble bubble[maxBubbles];
-Block block[maxBlocks];
+Ripple beat[MAXBEATS];
+Ripple ripple[MAXRIPPLES];
+Bubble bubble[MAXBUBBLES];
+Block block[MAXBLOCKS];
 
 uint8_t indexP = 0; //Index of running program
-uint32_t lastTime = 0;
-uint16_t sampleCount = 0;
-uint16_t samples[SAMPLES];
 uint8_t cBrightness;
 uint8_t pBrightness = 0;
 uint8_t buttonState = 0;
 uint8_t buttonStatePrev = 0;
 uint8_t blockMoves = 0;
 uint8_t block_dir;
+
+uint16_t audio;
+uint16_t sampleCount = 0;
+uint16_t samples[SAMPLES];
+
+uint32_t lastTime = 0;
 
 float MAX_VOL = MIC_MAX;
 float sensitivity = 0.47; //Higher value = smaller sensitivity
@@ -202,14 +205,15 @@ void setup() {
   for (int i = 0; i < SAMPLES; i++)
     samples[i] = MIC_MAX;
 }
+
 void loop() {
+  audio = readInput(); //Read microphone input
   checkButton();
-  if (buttonStateChanged)
-    indexP++;
-  if (indexP > 9)
-    indexP = 0;
-  if (indexP != 9)
-    digitalWrite(INDICATOR, HIGH); //Indication led is on if we are not running blank
+  
+  if (buttonStateChanged) indexP++;
+  if (indexP > 9)         indexP = 0;
+  if (indexP != 9)        digitalWrite(INDICATOR, HIGH); //Indication led is on if we are not running blank
+  
   switch (indexP) {
     case 0: vu();
       break;
@@ -255,11 +259,10 @@ void checkButton() {
   buttonStatePrev = buttonState;
 }
 void vu() {
-  uint16_t audio = readInput();
   uint8_t max_threshold = NUM_LEDS - 1;
   uint8_t min_threshold = 0;
   changeColor = true;
-  MAX_VOL = audioMax(audio, 5);
+  audioMax(audio, 5);
     audio = fscale(MIC_MIN, MAX_VOL, min_threshold, max_threshold, audio, 0.5);
     if (audio < MIN_LEDS && MAX_VOL <= MIN_VOL) audio = 0; //Avoid flickering caused by small interference
     for (uint8_t i = 0; i < audio; i++) {
@@ -279,11 +282,10 @@ void vu() {
   }
 
 void dots() {
-  uint16_t audio = readInput();
   uint8_t max_threshold = NUM_LEDS - 1;
   uint8_t min_threshold = 1;
   changeColor = true;
-  MAX_VOL = audioMax(audio, 5);
+  audioMax(audio, 5);
     audio = fscale(MIC_MIN, MAX_VOL, min_threshold, max_threshold, audio, 0.5);
 
     if (audio >= topLED)
@@ -302,11 +304,10 @@ void dots() {
   }
 
 void split() { //Vu meter starting from middle of strip and doing same effect to both directions
-  uint16_t audio = readInput();
   uint8_t max_threshold = NUM_LEDS - 1;
   uint8_t min_threshold = NUM_LEDS / 2;
   changeColor = true;
-  MAX_VOL = audioMax(audio, 6);
+  audioMax(audio, 6);
   audio = fscale(MIC_MIN, MAX_VOL, min_threshold, max_threshold, audio, 1.0);
   if (audio < MIN_LEDS / 2 + (NUM_LEDS / 2) && MAX_VOL <= MIN_VOL) audio = min_threshold; //Avoid flickering caused by small interference
   for (uint8_t i = min_threshold; i < audio; i++) {
@@ -321,16 +322,15 @@ void split() { //Vu meter starting from middle of strip and doing same effect to
     topLED = min_threshold;
 
   leds[(uint8_t)topLED] = CHSV(220, 255, 255);         //Top led on top of strip (PINK)
-  leds[NUM_LEDS - (uint8_t)topLED - 1] = leds[(uint8_t)topLED]; //On top of bottom half of strip
+  leds[NUM_LEDS - (uint8_t)topLED - 1] = leds[(uint8_t)topLED]; //On bottom of bottom half of strip
 
   FastLED.show();
   fadeToBlackBy(leds, NUM_LEDS, 85); //Looks smoother than using FastLED.clear()
   delay(5);
 }
 void brush() { // Swipes/brushes new color over the old one
-  uint16_t audio = readInput();
   changeColor = false;
-  MAX_VOL = audioMax(audio, 8);
+  audioMax(audio, 8);
   fill_solid(leds, NUM_LEDS, CHSV(hue, 255, 255));
   if (audio > MAX_VOL * sensitivity) {
     hue = random(256);
@@ -358,11 +358,10 @@ void brush() { // Swipes/brushes new color over the old one
   FastLED.clear();
 }
 void beats() {
-  uint16_t audio = readInput();
   changeColor = true;
-  MAX_VOL = audioMax(audio, 5);
+  audioMax(audio, 5);
   EVERY_N_MILLISECONDS(30) {
-    uint8_t newBeats = fscale(MIC_MIN, MAX_VOL, 2, maxBeats, audio, 0.5); //Max amount of beats to be spawned this loop
+    uint8_t newBeats = fscale(MIC_MIN, MAX_VOL, 2, MAXBEATS, audio, 0.5); //Max amount of beats to be spawned this loop
     if (newBeats % 2 != 0) //Must be divisible by two
       newBeats--;
 
@@ -372,11 +371,11 @@ void beats() {
         beat[i].init(beatlife); //initialize life
         beat[i].exist = true;
         beat[i].color += random(30);
-        beat[i + 1] = beat[i]; //Everything except velocity is the same for other beats twin
+        beat[i + 1] = beat[i];      //Everything except velocity is the same for other beats twin
         beat[i + 1].velocity *= -1; //because we want the other to go opposite direction
       }
     }
-    for (uint8_t i = 0; i < maxBeats; i++) {
+    for (uint8_t i = 0; i < MAXBEATS; i++) {
       if (beat[i].exist) {
         leds[beat[i].pos] = CHSV(beat[i].color, 255, beat[i].brightness);
         beat[i].Move();
@@ -388,14 +387,13 @@ void beats() {
 }
 
 void bubbles() { //Spawns bubbles that move when audio peaks enough
-  uint16_t audio = readInput();
   changeColor = true;
-  MAX_VOL = audioMax(audio, 4);
+  audioMax(audio, 4);
   if (audio > MAX_VOL * sensitivity)
   {
-    uint8_t randomBubble = random(maxBubbles);
+    uint8_t randomBubble = random(MAXBUBBLES);
     if (bubble[randomBubble].exist) {
-      bubble[randomBubble].life /= 2; //Give that bubble longer life
+      bubble[randomBubble].life /= 2;  //Give that bubble longer life
       bubble[randomBubble].NewColor(); // And new color
     }
     else {
@@ -403,7 +401,7 @@ void bubbles() { //Spawns bubbles that move when audio peaks enough
       bubble[randomBubble].NewColor();
     }
   }
-  for (uint8_t i = 0; i < maxBubbles; i++) {
+  for (uint8_t i = 0; i < MAXBUBBLES; i++) {
     if (bubble[i].exist) {
       leds[(int)bubble[i].pos] = CHSV(bubble[i].color, 255, bubble[i].brightness);
       bubble[i].Move();
@@ -415,11 +413,10 @@ void bubbles() { //Spawns bubbles that move when audio peaks enough
 }
 
 void ripples() {
-  uint16_t audio = readInput();
   changeColor = false;
-  MAX_VOL = audioMax(audio, 4);
+  audioMax(audio, 4);
   EVERY_N_MILLISECONDS(17) {
-    uint8_t newRipples = fscale(MIC_MIN, MAX_VOL, 2, maxRipples, audio, 0.5); //Max amount of ripples to be spawned this loop
+    uint8_t newRipples = fscale(MIC_MIN, MAX_VOL, 2, MAXRIPPLES, audio, 0.5); //Max amount of ripples to be spawned this loop
     if (newRipples % 2 != 0) //Must be divisible by two
       newRipples--;
 
@@ -430,13 +427,13 @@ void ripples() {
     fill_solid(leds, NUM_LEDS, CHSV(hue, 255, b)); //Delete this line if you dont like background color
     for (uint8_t i = 0; i < newRipples; i += 2) {
       if (audio > MAX_VOL * sensitivity * 0.65 && !ripple[i].exist) {
-        ripple[i].init(12); //initiliaze just in case color has changed after last init
+        ripple[i].init(12);           //initiliaze just in case color has changed after last init
         ripple[i].exist = true;
-        ripple[i + 1] = ripple[i]; //Everything except velocity is the same for other ripples twin
+        ripple[i + 1] = ripple[i];    //Everything except velocity is the same for other ripples twin
         ripple[i + 1].velocity *= -1; //because we want the other to go opposite direction
       }
     }
-    for (uint8_t i = 0; i < maxRipples; i++) {
+    for (uint8_t i = 0; i < MAXRIPPLES; i++) {
       if (ripple[i].exist) {
         leds[ripple[i].pos] = CHSV(ripple[i].color + 30, 180, ripple[i].brightness);
         ripple[i].Move();
@@ -447,14 +444,13 @@ void ripples() {
   }
 }
 void trails() { //Spawns trails that move
-  uint16_t audio = readInput();
   changeColor = true;
-  MAX_VOL = audioMax(audio, 4);
+  audioMax(audio, 4);
   if (audio > MAX_VOL * sensitivity)
   {
-    uint8_t randomTrail = random(maxTrails);
+    uint8_t randomTrail = random(MAXTRAILS);
     if (bubble[randomTrail].exist) {
-      bubble[randomTrail].life /= 2; //Extend life of trail
+      bubble[randomTrail].life /= 2;  //Extend life of trail
       bubble[randomTrail].NewColor(); // And give new color
     }
     else {
@@ -462,7 +458,7 @@ void trails() { //Spawns trails that move
       bubble[randomTrail].maxLife = 60;
     }
   }
-  for (uint8_t i = 0; i < maxTrails; i++) {
+  for (uint8_t i = 0; i < MAXTRAILS; i++) {
     if (bubble[i].exist) {
       leds[(int)bubble[i].pos] = CHSV(bubble[i].color, 255, bubble[i].brightness);
       bubble[i].Move();
@@ -474,21 +470,20 @@ void trails() { //Spawns trails that move
 }
 
 void blocks() {
-  uint16_t audio = readInput();
   uint32_t currentTime = millis();
   uint16_t interval = 300; //How long to wait before next block movement can be done(milliseconds)
   uint8_t movement;
   changeColor = false;
-  MAX_VOL = audioMax(audio, 3);
+  audioMax(audio, 3);
   if (MAX_VOL < audio && (uint32_t)(currentTime - lastTime) > interval) { //Casting done with uint to overcome millis
-    permission_to_move = true;                                         //looping over
+    permission_to_move = true;                                            //looping over
     lastTime = currentTime;
   }
   if (permission_to_move) {
     if (one_block)
       two_blocks_open();
     else if (two_blocks) {
-      if (blockMoves == 0) //To not change direction of block during the transition
+      if (blockMoves == 0)     //To not change direction of block during the transition
         block_dir = random(2); //Randomize if to close into one block or open into four
       if (block_dir == 0)
         four_blocks_open();
@@ -501,7 +496,7 @@ void blocks() {
     delay(10);
   }
   uint8_t bounce = beatsin8(60, 0, NUM_LEDS / 8); //Bounces all leds up and down in circular motion
-  for (uint8_t j = 0; j < maxBlocks; j++) {
+  for (uint8_t j = 0; j < MAXBLOCKS; j++) {
     for (uint8_t i = 0; i < NUM_LEDS / 8; i++) {
       leds[block[j].pos[i] + bounce] = CHSV(hue, 255, 255);
     }
@@ -511,8 +506,8 @@ void blocks() {
 }
 
 void four_blocks_close() { // Four blocks close into two blocks
-  for (int i = 0; i < maxBlocks; i++) {
-    if (i % (maxBlocks / 2) == 0)
+  for (int i = 0; i < MAXBLOCKS; i++) {
+    if (i % (MAXBLOCKS / 2) == 0)
       block[i].moveUp();
     else
       block[i].moveDown();
@@ -527,8 +522,8 @@ void four_blocks_close() { // Four blocks close into two blocks
   }
 }
 void two_blocks_close() { // Two blocks close into one
-  for (uint8_t i = 0; i < maxBlocks; i++) {
-    if (i < (maxBlocks / 2))
+  for (uint8_t i = 0; i < MAXBLOCKS; i++) {
+    if (i < (MAXBLOCKS / 2))
       block[i].moveUp();
     else
       block[i].moveDown();
@@ -543,8 +538,8 @@ void two_blocks_close() { // Two blocks close into one
   }
 }
 void two_blocks_open() { //One block opens into two
-  for (uint8_t i = 0; i < maxBlocks; i++) {
-    if (i < (maxBlocks / 2))
+  for (uint8_t i = 0; i < MAXBLOCKS; i++) {
+    if (i < (MAXBLOCKS / 2))
       block[i].moveDown();
     else
       block[i].moveUp();
@@ -558,8 +553,8 @@ void two_blocks_open() { //One block opens into two
   }
 }
 void four_blocks_open() { //Two blocks open into four
-  for (uint8_t i = 0; i < maxBlocks; i++) {
-    if (i % (maxBlocks / 2) == 0)
+  for (uint8_t i = 0; i < MAXBLOCKS; i++) {
+    if (i % (MAXBLOCKS / 2) == 0)
       block[i].moveDown();
     else
       block[i].moveUp();
@@ -584,24 +579,21 @@ int readInput() {
   int16_t audio = analogRead(MIC_PIN);
   //Serial.println(audio);
   audio -= NOISE;
-  audio = abs(audio); //Turns negative value to positive
+  audio = abs(audio);               //Turns negative value to positive
   return audio;
 }
-float audioMax(int audio, int multiplier) {
+void audioMax(int audio, int multiplier) {
   float average = 0;
-  samples[sampleCount] = audio; //Add one new sample value to samples
+  samples[sampleCount] = audio;     //Add one new sample value to samples
   sampleCount++;
 
   for (int i = 0; i < SAMPLES; i++)
-    average += samples[i];  // Calculate all samples to average variable
+    average += samples[i];          // Calculate all samples to average variable
 
-  average /= SAMPLES;   //Divide with amount of SAMPLES to get average of all samples
-  MAX_VOL = average * multiplier;   //Higher multiplier increases the sensitivity in most functions
+  average /= SAMPLES;               //Divide with amount of SAMPLES to get average of all samples
+  MAX_VOL = average * multiplier;   //Higher multiplier decreases the sensitivity in most functions
   if (MAX_VOL < MIN_VOL) MAX_VOL = MIN_VOL;
   if (sampleCount >= SAMPLES) sampleCount = 0;
-
-  //Serial.println(MAX_VOL);
-  return MAX_VOL; //Returning this might seem useless, but I believe it makes the functions more easily readable
 }
 
 float fscale(float originalMin, float originalMax, float newBegin, float newEnd, float inputValue, float curve) {
