@@ -15,5 +15,5 @@ Few variables you might also want to play with are:
 * MAXTRAILS
 </strong>
 
-Video of my build:
-https://www.youtube.com/watch?v=Box-O3KY1qI&t=
+### Video of my build:
+[![](http://img.youtube.com/vi/Box-O3KY1qI/0.jpg)](http://www.youtube.com/watch?v=Box-O3KY1qI "Youtube")
