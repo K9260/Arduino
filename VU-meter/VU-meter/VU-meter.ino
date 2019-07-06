@@ -1,7 +1,7 @@
 /*
- * VU meter
- * By Reko Meriö
- * https://github.com/K9260
+   VU meter
+   By Reko Meriö
+   https://github.com/K9260
 */
 
 
@@ -27,11 +27,13 @@ FASTLED_USING_NAMESPACE
 #define MIC_PIN     A0
 #define MIN_LEDS    14
 
-#define MAXBEATS 10               //Min is 2 and value has to be divisible by two
-#define MAXBUBBLES (NUM_LEDS / 3) //Decrease if there is too much action going on
-#define MAXRIPPLES 6              //Min is 2 and value has to be divisible by two
-#define MAXTRAILS 4
-#define MAXBLOCKS 4
+#define MAXBUBBLES   (NUM_LEDS / 3) //Decrease if there is too much action going on
+#define MAXBEATS     10             //Min is 2 and value has to be divisible by two
+#define MAXPARTICLES 10
+#define MAXRIPPLES   6              //Min is 2 and value has to be divisible by two
+#define MAXTRAILS    4
+#define MAXBLOCKS    4
+
 
 CRGB leds[NUM_LEDS];
 
@@ -161,14 +163,48 @@ struct block
 };
 typedef struct block Block;
 
+struct particle
+{
+  uint8_t brightness;
+  uint8_t color;
+  float pos;
+  float velocity;
+  bool exist;
+
+  particle() {
+    init(NUM_LEDS / 2);
+  }
+
+  void refresh() {
+    pos += velocity;
+    velocity *= 0.95;
+    brightness -= 2;
+    if (pos >= NUM_LEDS - 1) pos = NUM_LEDS - 1;
+    if (pos <= 0) pos = 0;
+    if (brightness < 10) {
+      exist = false;
+      brightness = 0;
+    }
+  }
+
+  void init(uint8_t Pos) {
+    pos = Pos;
+    velocity = random(5, 20);
+    velocity /= 10; // Velocity is between 0.5 - 1.9
+    exist = true;
+    brightness = random(200, 256);
+    color = hue + random(30);
+  }
+};
+typedef struct particle Particle;
+
 Ripple beat[MAXBEATS];
 Ripple ripple[MAXRIPPLES];
 Bubble bubble[MAXBUBBLES];
 Block block[MAXBLOCKS];
+Particle particle[MAXPARTICLES];
 
 uint8_t indexP = 0; //Index of running program
-uint8_t cBrightness;
-uint8_t pBrightness = 0;
 uint8_t buttonState = 0;
 uint8_t buttonStatePrev = 0;
 uint8_t blockMoves = 0;
@@ -209,31 +245,39 @@ void setup() {
 void loop() {
   audio = readInput(); //Read microphone input
   checkButton();
-  
-  if (buttonStateChanged) indexP++;
-  if (indexP > 9)         indexP = 0;
-  if (indexP != 9)        digitalWrite(INDICATOR, HIGH); //Indication led is on if we are not running blank
-  
+
+  if (buttonStateChanged) {
+    indexP++;
+  }
+  if (indexP > 10) {
+    indexP = 0;
+  }
+  if (indexP != 0) {
+    digitalWrite(INDICATOR, HIGH); //Indication led is on if we are not running blank
+  }
+
   switch (indexP) {
-    case 0: vu();
+    case 0: blank();
       break;
-    case 1: dots();
+    case 1: vu();
       break;
-    case 2: split();
+    case 2: dots();
       break;
-    case 3: brush();
+    case 3: split();
       break;
-    case 4: beats();
+    case 4: brush();
       break;
-    case 5: bubbles();
+    case 5: beats();
       break;
-    case 6: ripples();
+    case 6: bubbles();
       break;
-    case 7: trails();
+    case 7: ripples();
       break;
-    case 8: blocks();
+    case 8: trails();
       break;
-    case 9: blank();
+    case 9: blocks();
+      break;
+    case 10: fireworks();
       break;
   }
   EVERY_N_SECONDS(10) {
@@ -246,7 +290,7 @@ void checkButton() {
   uint32_t currentTime = millis();
   uint16_t interval = 200; // Had to add interval as the button was reading double taps every now and then
   buttonState = digitalRead(BUTTON_PIN);
-  if (buttonState != buttonStatePrev && buttonState == 1 && (uint32_t)(currentTime - lastTime) > interval){
+  if (buttonState != buttonStatePrev && buttonState == 1 && (uint32_t)(currentTime - lastTime) > interval) {
     buttonStateChanged = true;
     lastTime = currentTime;
   }
@@ -263,45 +307,45 @@ void vu() {
   uint8_t min_threshold = 0;
   changeColor = true;
   audioMax(audio, 5);
-    audio = fscale(MIC_MIN, MAX_VOL, min_threshold, max_threshold, audio, 0.5);
-    if (audio < MIN_LEDS && MAX_VOL <= MIN_VOL) audio = 0; //Avoid flickering caused by small interference
-    for (uint8_t i = 0; i < audio; i++) {
-      leds[i] = CHSV(hue + i * 2, 255, 255);
-    }
-    if (audio >= topLED)
-      topLED = audio;
-    else
-      topLED -= gravity;
-    if (topLED < min_threshold)
-      topLED = min_threshold;
-
-    leds[(uint8_t)topLED] = CHSV(220, 255, 255); //Pink led as top led with gravity
-    FastLED.show();
-    fadeToBlackBy(leds, NUM_LEDS, 85); //Looks smoother than using FastLED.clear()
-    delay(5);
+  audio = fscale(MIC_MIN, MAX_VOL, min_threshold, max_threshold, audio, 0.5);
+  if (audio < MIN_LEDS && MAX_VOL <= MIN_VOL) audio = 0; //Avoid flickering caused by small interference
+  for (uint8_t i = 0; i < audio; i++) {
+    leds[i] = CHSV(hue + i * 2, 255, 255);
   }
+  if (audio >= topLED)
+    topLED = audio;
+  else
+    topLED -= gravity;
+  if (topLED < min_threshold)
+    topLED = min_threshold;
+
+  leds[(uint8_t)topLED] = CHSV(220, 255, 255); //Pink led as top led with gravity
+  FastLED.show();
+  fadeToBlackBy(leds, NUM_LEDS, 85); //Looks smoother than using FastLED.clear()
+  delay(5);
+}
 
 void dots() {
   uint8_t max_threshold = NUM_LEDS - 1;
   uint8_t min_threshold = 1;
   changeColor = true;
   audioMax(audio, 5);
-    audio = fscale(MIC_MIN, MAX_VOL, min_threshold, max_threshold, audio, 0.5);
+  audio = fscale(MIC_MIN, MAX_VOL, min_threshold, max_threshold, audio, 0.5);
 
-    if (audio >= topLED)
-      topLED = audio;
-    else
-      topLED -= gravity;
-    if (topLED < min_threshold)
-      topLED = min_threshold;
+  if (audio >= topLED)
+    topLED = audio;
+  else
+    topLED -= gravity;
+  if (topLED < min_threshold)
+    topLED = min_threshold;
 
-    leds[(uint8_t)topLED] = CHSV(hue, 255, 255);      //Top led with gravity
-    leds[(uint8_t)topLED - 1] = leds[(uint8_t)topLED];    //His friend :D
+  leds[(uint8_t)topLED] = CHSV(hue, 255, 255);      //Top led with gravity
+  leds[(uint8_t)topLED - 1] = leds[(uint8_t)topLED];    //His friend :D
 
-    FastLED.show();
-    FastLED.clear();
-    delay(5);
-  }
+  FastLED.show();
+  FastLED.clear();
+  delay(5);
+}
 
 void split() { //Vu meter starting from middle of strip and doing same effect to both directions
   uint8_t max_threshold = NUM_LEDS - 1;
@@ -566,6 +610,39 @@ void four_blocks_open() { //Two blocks open into four
     permission_to_move = false;
     blockMoves = 0;
   }
+}
+
+void fireworks() {
+  changeColor = true;
+  bool particles = false;
+  audioMax(audio, 8);
+  //Check if any of the particles still exist
+  if (audio > MAX_VOL * sensitivity) {
+    for (uint8_t i = 0; i < MAXPARTICLES; i++) {
+      if (particle[i].exist) {
+        particles = true;
+      }
+    }
+    if (!particles) { //If no particles exist, create new ones
+      //Randomize the starting point
+      uint8_t startingPoint = random(NUM_LEDS / 2 - 10, NUM_LEDS / 2 + 10);
+      for (uint8_t i = 0; i < MAXPARTICLES; i++) {
+        particle[i].init(startingPoint);
+        if (i % 2 == 0) { //Half of the particles will go up and other half down
+          particle[i].velocity *= -1;
+        }
+      }
+    }
+  }
+  for (uint8_t i = 0; i < MAXPARTICLES; i++) {
+    if (particle[i].exist) { //Update particle if it exists
+      leds[int(particle[i].pos)] = CHSV(particle[i].color, 255, particle[i].brightness);
+      particle[i].refresh(); // Moves the particle and reduces brightness
+    }
+  }
+  FastLED.show();
+  FastLED.clear();
+  delay(5);
 }
 
 void blank() {
