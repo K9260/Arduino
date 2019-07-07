@@ -29,7 +29,7 @@ FASTLED_USING_NAMESPACE
 
 #define MAXBUBBLES   (NUM_LEDS / 3) //Decrease if there is too much action going on
 #define MAXBEATS     10             //Min is 2 and value has to be divisible by two
-#define MAXPARTICLES 10
+#define MAXPARTICLES 20
 #define MAXRIPPLES   6              //Min is 2 and value has to be divisible by two
 #define MAXTRAILS    4
 #define MAXBLOCKS    4
@@ -54,8 +54,9 @@ struct bubble
     init();
   }
   void Move() {
-    if (velocity > maxVelocity)
+    if (velocity > maxVelocity) {
       velocity = maxVelocity;
+    }
     pos += velocity;
     life++;
     brightness -= 255 / maxLife;
@@ -67,10 +68,12 @@ struct bubble
       velocity *= -1;
       pos = 0;
     }
-    if (life > maxLife || brightness < 20)
+    if (life > maxLife || brightness < 20) {
       exist = false;
-    if (!exist)
+    }
+    if (!exist) {
       init();
+    }
   }
   void NewColor() {
     color = hue + random(20);
@@ -114,8 +117,9 @@ struct ripple
       exist = false;
     }
     brightness -= (255 / maxLife);
-    if (life > maxLife || brightness < 20) exist = false;
-    if (!exist) init(15);
+    if (life > maxLife || brightness < 20) {
+      init(15);
+    }
   }
   void init(uint8_t MaxLife) {
     pos = random(MaxLife, NUM_LEDS - MaxLife); //Avoid spawning too close to edge
@@ -151,11 +155,12 @@ struct block
     }
   }
   void init() {
-    if (blockCount > 0)
+    if (blockCount > 0) {
       startPoint = (NUM_LEDS / 8) * blockCount * 2;
-    else
+    }
+    else {
       startPoint = 0;
-
+    }
     for (int i = 0; i < NUM_LEDS / 8; i++) {
       pos[i] = startPoint + i;
     }
@@ -179,8 +184,12 @@ struct particle
     pos += velocity;
     velocity *= 0.95;
     brightness -= 2;
-    if (pos >= NUM_LEDS - 1) pos = NUM_LEDS - 1;
-    if (pos <= 0) pos = 0;
+    if (pos >= NUM_LEDS - 1) { 
+      pos = NUM_LEDS - 1;
+    }
+    if (pos <= 0) { 
+      pos = 0;
+    }
     if (brightness < 10) {
       exist = false;
       brightness = 0;
@@ -204,7 +213,7 @@ Bubble bubble[MAXBUBBLES];
 Block block[MAXBLOCKS];
 Particle particle[MAXPARTICLES];
 
-uint8_t indexP = 0; //Index of running program
+uint8_t indexP = 10; //Index of running program
 uint8_t buttonState = 0;
 uint8_t buttonStatePrev = 0;
 uint8_t blockMoves = 0;
@@ -223,12 +232,10 @@ float topLED = 0;
 
 bool reversed = false;
 bool changeColor = false; //Does the function randomly change color every n seconds
-bool buttonStateChanged = false;
-
 bool permission_to_move = false;
-bool one_block = false;
-bool two_blocks = false;
-bool four_blocks = true;
+
+enum BlockSize { one_block, two_blocks, four_blocks };
+BlockSize blocksize = four_blocks; 
 
 void setup() {
   FastLED.addLeds<LED_TYPE, DATA_PIN, COLOR_ORDER>(leds, NUM_LEDS).setCorrection(TypicalLEDStrip);
@@ -244,9 +251,8 @@ void setup() {
 
 void loop() {
   audio = readInput(); //Read microphone input
-  checkButton();
 
-  if (buttonStateChanged) {
+  if (buttonPressed()) {
     indexP++;
   }
   if (indexP > 10) {
@@ -286,25 +292,24 @@ void loop() {
   }
 }
 
-void checkButton() {
+bool buttonPressed() {
   uint32_t currentTime = millis();
   uint16_t interval = 200; // Had to add interval as the button was reading double taps every now and then
+  bool pressed;
   buttonState = digitalRead(BUTTON_PIN);
   if (buttonState != buttonStatePrev && buttonState == 1 && (uint32_t)(currentTime - lastTime) > interval) {
-    buttonStateChanged = true;
     lastTime = currentTime;
+    pressed = true;
   }
-  else
-    buttonStateChanged = false;
-
-  if (buttonState == 1) //Long press will rotate color
-    hue++;
-
+  else {
+    pressed = false;
+  }
   buttonStatePrev = buttonState;
+  return pressed;
 }
 void vu() {
-  uint8_t max_threshold = NUM_LEDS - 1;
-  uint8_t min_threshold = 0;
+  #define max_threshold NUM_LEDS - 1
+  #define min_threshold 0
   changeColor = true;
   audioMax(audio, 5);
   audio = fscale(MIC_MIN, MAX_VOL, min_threshold, max_threshold, audio, 0.5);
@@ -326,8 +331,8 @@ void vu() {
 }
 
 void dots() {
-  uint8_t max_threshold = NUM_LEDS - 1;
-  uint8_t min_threshold = 1;
+  #define max_threshold NUM_LEDS - 1
+  #define min_threshold 1
   changeColor = true;
   audioMax(audio, 5);
   audio = fscale(MIC_MIN, MAX_VOL, min_threshold, max_threshold, audio, 0.5);
@@ -348,8 +353,8 @@ void dots() {
 }
 
 void split() { //Vu meter starting from middle of strip and doing same effect to both directions
-  uint8_t max_threshold = NUM_LEDS - 1;
-  uint8_t min_threshold = NUM_LEDS / 2;
+  #define max_threshold NUM_LEDS - 1
+  #define min_threshold NUM_LEDS / 2
   changeColor = true;
   audioMax(audio, 6);
   audio = fscale(MIC_MIN, MAX_VOL, min_threshold, max_threshold, audio, 1.0);
@@ -524,18 +529,21 @@ void blocks() {
     lastTime = currentTime;
   }
   if (permission_to_move) {
-    if (one_block)
+    switch (blocksize) {
+    case one_block:
       two_blocks_open();
-    else if (two_blocks) {
-      if (blockMoves == 0)     //To not change direction of block during the transition
+    break;
+    case two_blocks:
+      if (!blockMoves)     //To not change direction of block during the transition
         block_dir = random(2); //Randomize if to close into one block or open into four
       if (block_dir == 0)
         four_blocks_open();
       else
         two_blocks_close();
-    }
-    else if (four_blocks) {
+    break;
+    case four_blocks:
       four_blocks_close();
+    break;
     }
     delay(10);
   }
@@ -558,8 +566,7 @@ void four_blocks_close() { // Four blocks close into two blocks
   }
   blockMoves++;
   if (blockMoves > NUM_LEDS / 16) {
-    two_blocks = true;
-    four_blocks = false;
+    blocksize = two_blocks;
     permission_to_move = false;
     hue += 20;
     blockMoves = 0;
@@ -574,8 +581,7 @@ void two_blocks_close() { // Two blocks close into one
   }
   blockMoves++;
   if (blockMoves > NUM_LEDS / 8) {
-    one_block = true;
-    two_blocks = false;
+    blocksize = one_block;
     permission_to_move = false;
     hue = random(256);
     blockMoves = 0;
@@ -590,8 +596,7 @@ void two_blocks_open() { //One block opens into two
   }
   blockMoves++;
   if (blockMoves > NUM_LEDS / 8) {
-    two_blocks = true;
-    one_block = false;
+    blocksize = two_blocks;
     permission_to_move = false;
     blockMoves = 0;
   }
@@ -605,8 +610,7 @@ void four_blocks_open() { //Two blocks open into four
   }
   blockMoves++;
   if (blockMoves > NUM_LEDS / 16) {
-    two_blocks = false;
-    four_blocks = true;
+    blocksize = four_blocks;
     permission_to_move = false;
     blockMoves = 0;
   }
@@ -618,7 +622,8 @@ void fireworks() {
   audioMax(audio, 8);
   //Check if any of the particles still exist
   if (audio > MAX_VOL * sensitivity) {
-    for (uint8_t i = 0; i < MAXPARTICLES; i++) {
+    uint8_t newParticles = random(5, MAXPARTICLES + 1);
+    for (uint8_t i = 0; i < newParticles; i++) {
       if (particle[i].exist) {
         particles = true;
       }
@@ -626,7 +631,7 @@ void fireworks() {
     if (!particles) { //If no particles exist, create new ones
       //Randomize the starting point
       uint8_t startingPoint = random(NUM_LEDS / 2 - 10, NUM_LEDS / 2 + 10);
-      for (uint8_t i = 0; i < MAXPARTICLES; i++) {
+      for (uint8_t i = 0; i < newParticles; i++) {
         particle[i].init(startingPoint);
         if (i % 2 == 0) { //Half of the particles will go up and other half down
           particle[i].velocity *= -1;
