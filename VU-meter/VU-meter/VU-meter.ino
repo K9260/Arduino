@@ -27,10 +27,10 @@ FASTLED_USING_NAMESPACE
 #define MIC_PIN     A0
 #define MIN_LEDS    14
 
-#define MAXBUBBLES   (NUM_LEDS / 3) //Decrease if there is too much action going on
-#define MAXBEATS     10             //Min is 2 and value has to be divisible by two
-#define MAXPARTICLES 20
-#define MAXRIPPLES   6              //Min is 2 and value has to be divisible by two
+#define MAXPARTICLES 25 // NOTE: Nothing below can be higher than maxparticles,
+#define MAXBUBBLES   20 //       as bubbles, ripples etc all use particle struct!  
+#define MAXBEATS     10 //Min is 2 and value has to be divisible by two
+#define MAXRIPPLES   6  //Min is 2 and value has to be divisible by two
 #define MAXTRAILS    4
 #define MAXBLOCKS    4
 
@@ -38,101 +38,6 @@ FASTLED_USING_NAMESPACE
 CRGB leds[NUM_LEDS];
 
 uint8_t hue = 0;
-
-struct bubble
-{
-  uint8_t brightness;
-  uint8_t color;
-  float pos;
-  float velocity;
-  uint16_t life;
-  uint16_t maxLife;
-  int8_t maxVelocity;
-  bool exist;
-
-  bubble() {
-    init();
-  }
-  void Move() {
-    if (velocity > maxVelocity) {
-      velocity = maxVelocity;
-    }
-    pos += velocity;
-    life++;
-    brightness -= 255 / maxLife;
-    if (pos > NUM_LEDS - 1) {
-      velocity *= -1;
-      pos = NUM_LEDS - 1;
-    }
-    if (pos < 0) {
-      velocity *= -1;
-      pos = 0;
-    }
-    if (life > maxLife || brightness < 20) {
-      exist = false;
-    }
-    if (!exist) {
-      init();
-    }
-  }
-  void NewColor() {
-    color = hue + random(20);
-    brightness = 255;
-  }
-  void init() {
-    pos = random(0, NUM_LEDS);
-    velocity = 0.5 + (random(30) * 0.01); // Increase or decrease if needed
-    life = 0;
-    maxLife = 90; //How many moves bubble can do
-    exist = false;
-    brightness = 255;
-    color = hue + random(30);
-    maxVelocity = 2;
-  }
-};
-typedef struct bubble Bubble;
-
-struct ripple
-{
-  uint8_t brightness;
-  uint8_t color;
-  uint8_t pos;
-  int8_t velocity;
-  uint16_t life;
-  uint16_t maxLife;
-  bool exist;
-
-  ripple() {
-    init(15);
-  }
-  void Move() {
-    pos += velocity;
-    life++;
-    if (pos > NUM_LEDS - 1) {
-      pos = NUM_LEDS - 1;
-      exist = false;
-    }
-    if (pos < 0) {
-      pos = 0;
-      exist = false;
-    }
-    brightness -= (255 / maxLife);
-    if (life > maxLife || brightness < 20) {
-      init(15);
-    }
-  }
-  void init(uint8_t MaxLife) {
-    pos = random(MaxLife, NUM_LEDS - MaxLife); //Avoid spawning too close to edge
-    velocity = 1;
-    life = 0;
-    maxLife = MaxLife;
-    exist = false;
-    brightness = 255;
-    color = hue;
-  }
-};
-typedef struct ripple Ripple;
-
 uint8_t blockCount = 0;
 
 struct block
@@ -172,22 +77,25 @@ struct particle
 {
   uint8_t brightness;
   uint8_t color;
+  uint8_t maxVelocity;
+  uint16_t life;
+  uint16_t maxLife;
   float pos;
   float velocity;
   bool exist;
 
   particle() {
-    init(NUM_LEDS / 2);
+    init();
   }
 
-  void refresh() {
+  void firework() {
     pos += velocity;
     velocity *= 0.95;
     brightness -= 2;
-    if (pos >= NUM_LEDS - 1) { 
+    if (pos >= NUM_LEDS - 1) {
       pos = NUM_LEDS - 1;
     }
-    if (pos <= 0) { 
+    if (pos <= 0) {
       pos = 0;
     }
     if (brightness < 10) {
@@ -196,7 +104,54 @@ struct particle
     }
   }
 
-  void init(uint8_t Pos) {
+  void bubble() {
+    if (velocity > maxVelocity) {
+      velocity = maxVelocity;
+    }
+    pos += velocity;
+    life++;
+    brightness -= 255 / maxLife;
+    if (pos > NUM_LEDS - 1) {
+      velocity *= -1;
+      pos = NUM_LEDS - 1;
+    }
+    if (pos < 0) {
+      velocity *= -1;
+      pos = 0;
+    }
+    if (life > maxLife || brightness < 20) {
+      initBubble();
+    }
+  }
+
+  void ripple() {
+    pos += velocity;
+    life++;
+    if (pos > NUM_LEDS - 1) {
+      pos = NUM_LEDS - 1;
+      exist = false;
+    }
+    if (pos < 0) {
+      pos = 0;
+      exist = false;
+    }
+    brightness -= (255 / maxLife);
+    if (life > maxLife || brightness < 20) {
+      initRipple(15);
+    }
+  }
+
+  void init() {
+    pos = 0;
+    velocity = 0;
+    brightness = 0;
+    life = 0;
+    maxLife = 0;
+    color = hue;
+    exist = false;
+  }
+
+  void initFirework(uint8_t Pos) {
     pos = Pos;
     velocity = random(5, 20);
     velocity /= 10; // Velocity is between 0.5 - 1.9
@@ -204,16 +159,39 @@ struct particle
     brightness = random(200, 256);
     color = hue + random(30);
   }
+
+  void initBubble() {
+    pos = random(0, NUM_LEDS);
+    velocity = 0.5 + (random(30) * 0.01); // Increase or decrease if needed
+    life = 0;
+    maxLife = 90; //How many moves bubble can do
+    exist = false;
+    brightness = 255;
+    color = hue + random(30);
+    maxVelocity = 2;
+  }
+
+  void initRipple(uint8_t MaxLife) {
+    pos = random(MaxLife, NUM_LEDS - MaxLife); //Avoid spawning too close to edge
+    velocity = 1;
+    life = 0;
+    maxLife = MaxLife;
+    exist = false;
+    brightness = 255;
+    color = hue;
+  }
+
+  void newColor() {
+    color = hue + random(20);
+    brightness = 255;
+  }
 };
 typedef struct particle Particle;
 
-Ripple beat[MAXBEATS];
-Ripple ripple[MAXRIPPLES];
-Bubble bubble[MAXBUBBLES];
 Block block[MAXBLOCKS];
 Particle particle[MAXPARTICLES];
 
-uint8_t indexP = 10; //Index of running program
+uint8_t indexP = 0; //Index of running program
 uint8_t buttonState = 0;
 uint8_t buttonStatePrev = 0;
 uint8_t blockMoves = 0;
@@ -235,7 +213,7 @@ bool changeColor = false; //Does the function randomly change color every n seco
 bool permission_to_move = false;
 
 enum BlockSize { one_block, two_blocks, four_blocks };
-BlockSize blocksize = four_blocks; 
+BlockSize blocksize = four_blocks;
 
 void setup() {
   FastLED.addLeds<LED_TYPE, DATA_PIN, COLOR_ORDER>(leds, NUM_LEDS).setCorrection(TypicalLEDStrip);
@@ -308,8 +286,8 @@ bool buttonPressed() {
   return pressed;
 }
 void vu() {
-  #define max_threshold NUM_LEDS - 1
-  #define min_threshold 0
+#define max_threshold NUM_LEDS - 1
+#define min_threshold 0
   changeColor = true;
   audioMax(audio, 5);
   audio = fscale(MIC_MIN, MAX_VOL, min_threshold, max_threshold, audio, 0.5);
@@ -331,8 +309,8 @@ void vu() {
 }
 
 void dots() {
-  #define max_threshold NUM_LEDS - 1
-  #define min_threshold 1
+#define max_threshold NUM_LEDS - 1
+#define min_threshold 1
   changeColor = true;
   audioMax(audio, 5);
   audio = fscale(MIC_MIN, MAX_VOL, min_threshold, max_threshold, audio, 0.5);
@@ -353,8 +331,8 @@ void dots() {
 }
 
 void split() { //Vu meter starting from middle of strip and doing same effect to both directions
-  #define max_threshold NUM_LEDS - 1
-  #define min_threshold NUM_LEDS / 2
+#define max_threshold NUM_LEDS - 1
+#define min_threshold NUM_LEDS / 2
   changeColor = true;
   audioMax(audio, 6);
   audio = fscale(MIC_MIN, MAX_VOL, min_threshold, max_threshold, audio, 1.0);
@@ -415,19 +393,19 @@ void beats() {
       newBeats--;
 
     for (int i = 0; i < newBeats; i += 2) {
-      if (audio > MAX_VOL * sensitivity * 0.55 && !beat[i].exist) {
+      if (audio > MAX_VOL * sensitivity * 0.55 && !particle[i].exist) {
         uint8_t beatlife = random(6, 10); //Longer life = longer length
-        beat[i].init(beatlife); //initialize life
-        beat[i].exist = true;
-        beat[i].color += random(30);
-        beat[i + 1] = beat[i];      //Everything except velocity is the same for other beats twin
-        beat[i + 1].velocity *= -1; //because we want the other to go opposite direction
+        particle[i].initRipple(beatlife); //initialize life
+        particle[i].exist = true;
+        particle[i].color += random(30);
+        particle[i + 1] = particle[i];      //Everything except velocity is the same for other beats twin
+        particle[i + 1].velocity *= -1; //because we want the other to go opposite direction
       }
     }
     for (uint8_t i = 0; i < MAXBEATS; i++) {
-      if (beat[i].exist) {
-        leds[beat[i].pos] = CHSV(beat[i].color, 255, beat[i].brightness);
-        beat[i].Move();
+      if (particle[i].exist) {
+        leds[(uint8_t)particle[i].pos] = CHSV(particle[i].color, 255, particle[i].brightness);
+        particle[i].ripple();
       }
     }
     FastLED.show();
@@ -441,19 +419,19 @@ void bubbles() { //Spawns bubbles that move when audio peaks enough
   if (audio > MAX_VOL * sensitivity)
   {
     uint8_t randomBubble = random(MAXBUBBLES);
-    if (bubble[randomBubble].exist) {
-      bubble[randomBubble].life /= 2;  //Give that bubble longer life
-      bubble[randomBubble].NewColor(); // And new color
+    if (particle[randomBubble].exist) {
+      particle[randomBubble].life /= 2;  //Give that bubble longer life
+      particle[randomBubble].newColor(); // And new color
     }
     else {
-      bubble[randomBubble].exist = true;
-      bubble[randomBubble].NewColor();
+      particle[randomBubble].exist = true;
+      particle[randomBubble].newColor();
     }
   }
   for (uint8_t i = 0; i < MAXBUBBLES; i++) {
-    if (bubble[i].exist) {
-      leds[(int)bubble[i].pos] = CHSV(bubble[i].color, 255, bubble[i].brightness);
-      bubble[i].Move();
+    if (particle[i].exist) {
+      leds[(uint8_t)particle[i].pos] = CHSV(particle[i].color, 255, particle[i].brightness);
+      particle[i].bubble();
     }
   }
   FastLED.show();
@@ -475,17 +453,17 @@ void ripples() {
     uint8_t b = beatsin8(30, 70, 90); //Pulsing brightness for background (pulses,min,max)
     fill_solid(leds, NUM_LEDS, CHSV(hue, 255, b)); //Delete this line if you dont like background color
     for (uint8_t i = 0; i < newRipples; i += 2) {
-      if (audio > MAX_VOL * sensitivity * 0.65 && !ripple[i].exist) {
-        ripple[i].init(12);           //initiliaze just in case color has changed after last init
-        ripple[i].exist = true;
-        ripple[i + 1] = ripple[i];    //Everything except velocity is the same for other ripples twin
-        ripple[i + 1].velocity *= -1; //because we want the other to go opposite direction
+      if (audio > MAX_VOL * sensitivity * 0.65 && !particle[i].exist) {
+        particle[i].initRipple(12);           //initiliaze just in case color has changed after last init
+        particle[i].exist = true;
+        particle[i + 1] = particle[i];    //Everything except velocity is the same for other ripples twin
+        particle[i + 1].velocity *= -1; //because we want the other to go opposite direction
       }
     }
     for (uint8_t i = 0; i < MAXRIPPLES; i++) {
-      if (ripple[i].exist) {
-        leds[ripple[i].pos] = CHSV(ripple[i].color + 30, 180, ripple[i].brightness);
-        ripple[i].Move();
+      if (particle[i].exist) {
+        leds[(uint8_t)particle[i].pos] = CHSV(particle[i].color + 30, 180, particle[i].brightness);
+        particle[i].ripple();
       }
     }
     FastLED.show();
@@ -498,19 +476,19 @@ void trails() { //Spawns trails that move
   if (audio > MAX_VOL * sensitivity)
   {
     uint8_t randomTrail = random(MAXTRAILS);
-    if (bubble[randomTrail].exist) {
-      bubble[randomTrail].life /= 2;  //Extend life of trail
-      bubble[randomTrail].NewColor(); // And give new color
+    if (particle[randomTrail].exist) {
+      particle[randomTrail].life /= 2;  //Extend life of trail
+      particle[randomTrail].newColor(); // And give new color
     }
     else {
-      bubble[randomTrail].exist = true;
-      bubble[randomTrail].maxLife = 60;
+      particle[randomTrail].exist = true;
+      particle[randomTrail].maxLife = 60;
     }
   }
   for (uint8_t i = 0; i < MAXTRAILS; i++) {
-    if (bubble[i].exist) {
-      leds[(int)bubble[i].pos] = CHSV(bubble[i].color, 255, bubble[i].brightness);
-      bubble[i].Move();
+    if (particle[i].exist) {
+      leds[(uint8_t)particle[i].pos] = CHSV(particle[i].color, 255, particle[i].brightness);
+      particle[i].bubble();
     }
   }
   FastLED.show();
@@ -530,20 +508,20 @@ void blocks() {
   }
   if (permission_to_move) {
     switch (blocksize) {
-    case one_block:
-      two_blocks_open();
-    break;
-    case two_blocks:
-      if (!blockMoves)     //To not change direction of block during the transition
-        block_dir = random(2); //Randomize if to close into one block or open into four
-      if (block_dir == 0)
-        four_blocks_open();
-      else
-        two_blocks_close();
-    break;
-    case four_blocks:
-      four_blocks_close();
-    break;
+      case one_block:
+        two_blocks_open();
+        break;
+      case two_blocks:
+        if (!blockMoves)     //To not change direction of block during the transition
+          block_dir = random(2); //Randomize if to close into one block or open into four
+        if (block_dir == 0)
+          four_blocks_open();
+        else
+          two_blocks_close();
+        break;
+      case four_blocks:
+        four_blocks_close();
+        break;
     }
     delay(10);
   }
@@ -632,7 +610,7 @@ void fireworks() {
       //Randomize the starting point
       uint8_t startingPoint = random(NUM_LEDS / 2 - 10, NUM_LEDS / 2 + 10);
       for (uint8_t i = 0; i < newParticles; i++) {
-        particle[i].init(startingPoint);
+        particle[i].initFirework(startingPoint);
         if (i % 2 == 0) { //Half of the particles will go up and other half down
           particle[i].velocity *= -1;
         }
@@ -642,7 +620,7 @@ void fireworks() {
   for (uint8_t i = 0; i < MAXPARTICLES; i++) {
     if (particle[i].exist) { //Update particle if it exists
       leds[int(particle[i].pos)] = CHSV(particle[i].color, 255, particle[i].brightness);
-      particle[i].refresh(); // Moves the particle and reduces brightness
+      particle[i].firework(); // Moves the particle and reduces brightness
     }
   }
   FastLED.show();
