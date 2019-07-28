@@ -14,6 +14,7 @@ FASTLED_USING_NAMESPACE
 #warning "Requires FastLED 3.1 or later; check github for latest code."
 #endif
 
+#define SAMPLING_T  2     /* Dont put higher value than 3, or then change delays */
 #define ROTARY_CLK  2
 #define ROTARY_DT   3
 #define BUTTON_PIN  4
@@ -29,10 +30,10 @@ FASTLED_USING_NAMESPACE
 #define MIC_PIN     A0
 #define MIN_LEDS    14
 
-#define MAXPARTICLES 25 // NOTE: Nothing below can be higher than maxparticles,
-#define MAXBUBBLES   20 //       as bubbles, ripples etc all use particle struct!  
-#define MAXBEATS     10 //Min is 2 and value has to be divisible by two
-#define MAXRIPPLES   6  //Min is 2 and value has to be divisible by two
+#define MAXPARTICLES 25    /* NOTE: Nothing below can be higher than maxparticles... */
+#define MAXBUBBLES   20    /* ...as bubbles, ripples etc all use particle struct!    */
+#define MAXBEATS     10    /* Min: 2 Max: MAXPARTICLES / 2 and value has to be divisible by two */
+#define MAXRIPPLES   6     /* Min: 2 Max: MAXPARTICLES / 2 and value has to be divisible by two */
 #define MAXTRAILS    4
 #define MAXBLOCKS    4
 
@@ -247,7 +248,7 @@ void (*modes[])() = {
 #define MODES_LENGTH sizeof(modes) / sizeof(modes[0])
 
 void loop() {
-  audio = readInput(); //Read microphone input
+  audio = sample(SAMPLING_T);
 
   if (buttonPressed()) {
     program++;
@@ -337,7 +338,7 @@ void vu() {
   leds[(uint8_t)topLED] = CHSV(220, 255, 255); //Pink led as top led with gravity
   FastLED.show();
   fadeToBlackBy(leds, NUM_LEDS, 85); //Looks smoother than using FastLED.clear()
-  delay(5);
+  delay(5 - SAMPLING_T);
 }
 
 void dots() {
@@ -361,7 +362,7 @@ void dots() {
 
   FastLED.show();
   FastLED.clear();
-  delay(5);
+  delay(5 - SAMPLING_T);
 }
 
 void split() { //Vu meter starting from middle of strip and doing same effect to both directions
@@ -389,7 +390,7 @@ void split() { //Vu meter starting from middle of strip and doing same effect to
 
   FastLED.show();
   fadeToBlackBy(leds, NUM_LEDS, 85); //Looks smoother than using FastLED.clear()
-  delay(5);
+  delay(5 - SAMPLING_T);
 }
 void brush() { // Swipes/brushes new color over the old one
   changeColor = false;
@@ -417,7 +418,7 @@ void brush() { // Swipes/brushes new color over the old one
 }
 void beats() {
   changeColor = true;
-  EVERY_N_MILLISECONDS(30) {
+  EVERY_N_MILLISECONDS(30 - SAMPLING_T) {
     uint8_t newBeats = fscale(MIC_MIN, sensitivity, 2, MAXBEATS, audio, 0.5); //Max amount of beats to be spawned this loop
     if (newBeats % 2 != 0) //Must be divisible by two
       newBeats--;
@@ -463,16 +464,16 @@ void bubbles() { //Spawns bubbles that move when audio peaks enough
   }
   FastLED.show();
   FastLED.clear();
-  delay(3);
+  delay(3 - SAMPLING_T);
 }
 
 void ripples() {
   changeColor = false;
-  EVERY_N_MILLISECONDS(17) {
+  EVERY_N_MILLISECONDS(17  - SAMPLING_T) {
     uint8_t newRipples = fscale(MIC_MIN, sensitivity, 2, MAXRIPPLES, audio, 0.5); //Max amount of ripples to be spawned this loop
-    if (newRipples % 2 != 0) //Must be divisible by two
+    if (newRipples % 2 != 0) { //Must be divisible by two
       newRipples--;
-
+    }
     EVERY_N_MILLISECONDS(200) {
       hue++; //Slight color rotation
     }
@@ -517,7 +518,7 @@ void trails() { //Spawns trails that move
   }
   FastLED.show();
   fadeToBlackBy(leds, NUM_LEDS, 43);
-  delay(3);
+  delay(3 - SAMPLING_T);
 }
 
 void blocks() {
@@ -546,7 +547,7 @@ void blocks() {
         four_blocks_close();
         break;
     }
-    delay(10);
+    delay(10  - SAMPLING_T);
   }
   uint8_t bounce = beatsin8(60, 0, NUM_LEDS / 8); //Bounces all leds up and down in circular motion
   for (uint8_t j = 0; j < MAXBLOCKS; j++) {
@@ -624,7 +625,7 @@ void fireworks() {
   changeColor = true;
   bool particles = false;
   //Check if any of the particles still exist
-  if (audio > sensitivity * 0.7) {
+  if (audio > sensitivity * 0.5) {
     uint8_t newParticles = random(5, MAXPARTICLES + 1);
     for (uint8_t i = 0; i < newParticles; i++) {
       if (particle[i].exist) {
@@ -650,7 +651,7 @@ void fireworks() {
   }
   FastLED.show();
   FastLED.clear();
-  delay(5);
+  delay(5 - SAMPLING_T);
 }
 
 void blank() {
@@ -660,10 +661,22 @@ void blank() {
   delay(5);
 }
 
-int16_t readInput() {
-  int16_t audio = analogRead(MIC_PIN);
-  audio -= NOISE;
+uint16_t readInput() {
+  int16_t audio = analogRead(MIC_PIN) - NOISE;
   return abs(audio);
+}
+
+uint16_t sample(uint8_t samplingTime) {
+  uint16_t samples = 0;
+  uint16_t average = 0;
+  uint32_t startTime = millis();
+
+  while ((uint32_t)(millis() - startTime) < samplingTime) {
+    samples++;
+    average += readInput();
+  }
+  average /= samples;
+  return average;
 }
 
 float fscale(float originalMin, float originalMax, float newBegin, float newEnd, float inputValue, float curve) {
