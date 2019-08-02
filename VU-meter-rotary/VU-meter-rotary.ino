@@ -148,43 +148,43 @@ struct particle
   }
 
   void init() {
-    pos = 0;
-    velocity = 0;
+    pos        = 0;
+    velocity   = 0;
     brightness = 0;
-    life = 0;
-    maxLife = 0;
-    color = hue;
-    exist = false;
+    life       = 0;
+    maxLife    = 0;
+    color      = hue;
+    exist      = false;
   }
 
   void initFirework(uint8_t Pos) {
-    pos = Pos;
-    velocity = random(5, 20);
-    velocity /= 10; // Velocity is between 0.5 - 1.9
-    exist = true;
+    pos        = Pos;
+    velocity   = random(5, 20);
+    velocity  /= 10; // Velocity is between 0.5 - 1.9
+    exist      = true;
     brightness = random(200, 256);
-    color = hue + random(30);
+    color      = hue + random(30);
   }
 
   void initBubble() {
-    pos = random(0, NUM_LEDS);
-    velocity = 0.5 + (random(30) * 0.01); // Increase or decrease if needed
-    life = 0;
-    maxLife = 90; //How many moves bubble can do
-    exist = false;
-    brightness = 255;
-    color = hue + random(30);
+    pos         = random(0, NUM_LEDS);
+    velocity    = 0.5 + (random(30) * 0.01); // Increase or decrease if needed
+    life        = 0;
+    maxLife     = 90; //How many moves bubble can do
+    exist       = false;
+    brightness  = 255;
+    color       = hue + random(30);
     maxVelocity = 2;
   }
 
   void initRipple(uint8_t MaxLife) {
-    pos = random(MaxLife, NUM_LEDS - MaxLife); //Avoid spawning too close to edge
-    velocity = 1;
-    life = 0;
-    maxLife = MaxLife;
-    exist = false;
+    pos        = random(MaxLife, NUM_LEDS - MaxLife); //Avoid spawning too close to edge
+    velocity   = 1;
+    life       = 0;
+    maxLife    = MaxLife;
+    exist      = false;
     brightness = 255;
-    color = hue;
+    color      = hue;
   }
 
   void newColor() {
@@ -255,6 +255,7 @@ void loop() {
   if (buttonPressed()) {
     program++;
     program %= MODES_LENGTH;
+    drawDisplay();
   }
   if (program) {
     EVERY_N_MILLISECONDS(1000) {
@@ -289,12 +290,7 @@ void updateEncoder() {
   } else {
     sensitivity--;
   }
-  if (sensitivity <= 0) {
-    sensitivity = 0;
-  }
-  if (sensitivity >= 100) {
-    sensitivity = 100;
-  }
+  sensitivity = constrain(sensitivity, 0, 100);
   delay(1); // Weird jumpy updates are happening without any delay
 }
 
