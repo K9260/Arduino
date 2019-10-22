@@ -1,7 +1,7 @@
 /*
    VU meter
    By Reko Meriö
-   https://github.com/K9260
+   https://github.com/rekomerio
 */
 
 
