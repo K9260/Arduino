@@ -1,7 +1,7 @@
 /*
    VU meter with rotary encoder and LCD display
    By Reko Meriö
-   https://github.com/K9260
+   https://github.com/rekomerio
 */
 
 #include <Wire.h>
